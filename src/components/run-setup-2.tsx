@@ -17,7 +17,7 @@ export default function RunSetup2() {
     const handleNext = () => {
         setSampleInputMethod(selectedSampleInput)
         setElutionType(selectedElutionType)
-        setCurrentPage("load-reagents")
+        setCurrentPage("load-plastics")
     }
 
     const handleSampleInputSelect = (input: string) => {

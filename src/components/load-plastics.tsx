@@ -4,7 +4,7 @@ import { useRunStore } from "@/lib/store"
 import NavigationButtons from "./navigation-buttons"
 import { Clock } from "lucide-react"
 
-export function LoadReagents() {
+export function LoadPlastics() {
     const { setCurrentPage } = useRunStore()
 
     const reagentData = [

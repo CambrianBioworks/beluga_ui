@@ -88,8 +88,8 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
 }
 
 export default function RunSetup() {
-    const { runData, setRunId, setOperatorName, setNumberOfSamples, setCurrentPage } = useRunStore()
-    const [activeKeyboard, setActiveKeyboard] = useState<'runId' | 'operator' | 'samples' | null>(null)
+    const { runData, setOperatorName, setNumberOfSamples, setCurrentPage } = useRunStore()
+    const [activeKeyboard, setActiveKeyboard] = useState<'operator' | 'samples' | null>(null)
     const [activeField, setActiveField] = useState<string>('')
 
     const handleBack = () => {
@@ -100,16 +100,13 @@ export default function RunSetup() {
         setCurrentPage("run-setup-2")
     }
 
-    const handleFieldFocus = (field: 'runId' | 'operator' | 'samples') => {
+    const handleFieldFocus = (field: 'operator' | 'samples') => {
         setActiveKeyboard(field)
         setActiveField(field)
     }
 
     const handleKeyPress = (key: string) => {
         switch (activeField) {
-            case 'runId':
-                setRunId(runData.runId + key)
-                break
             case 'operator':
                 setOperatorName(runData.operatorName + key)
                 break
@@ -121,9 +118,6 @@ export default function RunSetup() {
 
     const handleBackspace = () => {
         switch (activeField) {
-            case 'runId':
-                setRunId(runData.runId.slice(0, -1))
-                break
             case 'operator':
                 setOperatorName(runData.operatorName.slice(0, -1))
                 break
@@ -139,7 +133,7 @@ export default function RunSetup() {
     }
 
     const isFormValid =
-        runData.runId.trim() !== "" && runData.operatorName.trim() !== "" && runData.numberOfSamples.trim() !== ""
+        runData.operatorName.trim() !== "" && runData.numberOfSamples.trim() !== ""
 
     return (
         <>
@@ -165,30 +159,11 @@ export default function RunSetup() {
                     Run configuration
                 </h2>
 
-                {/* Main Configuration Card */}
-                <div className="absolute w-[912px] h-[692px] left-[84px] top-[407px] bg-[var(--pcr-card)] rounded-[20px]">
+                {/* Main Configuration Card - Reduced height since no Run ID */}
+                <div className="absolute w-[912px] h-[534px] left-[84px] top-[407px] bg-[var(--pcr-card)] rounded-[20px]">
                     
-                    {/* Run ID */}
-                    <div className="absolute w-[835px] h-[158px] left-[39px] top-[61px]">
-                        <label className="absolute w-[213px] h-[41px] left-0 top-0 text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
-                            Run ID
-                        </label>
-                        <button
-                            onClick={() => handleFieldFocus('runId')}
-                            className={`absolute w-[835px] h-[92px] left-0 top-[66px] bg-[var(--pcr-input-bg)] rounded-[20px] px-[32px] text-left text-[24px] font-light border-2 transition-colors z-60 ${
-                                activeField === 'runId' 
-                                    ? 'border-[var(--pcr-accent)] text-[var(--pcr-accent)]' 
-                                    : 'border-transparent text-[var(--pcr-text-primary)]'
-                            }`}
-                        >
-                            {runData.runId || (
-                                <span className="text-[var(--pcr-text-light)]">Enter run ID</span>
-                            )}
-                        </button>
-                    </div>
-
-                    {/* Operator Name */}
-                    <div className="absolute w-[835px] h-[158px] left-[39px] top-[267px]">
+                    {/* Operator Name - Moved up and centered */}
+                    <div className="absolute w-[835px] h-[158px] left-[39px] top-[80px]">
                         <label className="absolute w-[249px] h-[41px] left-0 top-0 text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
                             Operator name
                         </label>
@@ -206,8 +181,8 @@ export default function RunSetup() {
                         </button>
                     </div>
 
-                    {/* Number of Samples */}
-                    <div className="absolute w-[835px] h-[158px] left-[39px] top-[473px]">
+                    {/* Number of Samples - Moved up and centered */}
+                    <div className="absolute w-[835px] h-[158px] left-[39px] top-[296px]">
                         <label className="absolute w-[298px] h-[41px] left-0 top-0 text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
                             Number of samples
                         </label>
@@ -226,13 +201,13 @@ export default function RunSetup() {
                     </div>
                 </div>
 
-                {/* Auto Calculated Requirements Section */}
-                <h2 className="absolute w-[547px] h-[44px] left-[79px] top-[1159px] text-[var(--pcr-text-primary)] text-[36px] font-normal leading-[40px]">
+                {/* Auto Calculated Requirements Section - Moved up */}
+                <h2 className="absolute w-[547px] h-[44px] left-[79px] top-[1001px] text-[var(--pcr-text-primary)] text-[36px] font-normal leading-[40px]">
                     Auto calculated requirements
                 </h2>
 
-                {/* Reagent Volumes Card */}
-                <div className="absolute w-[429px] h-[365px] left-[79px] top-[1253px] bg-[var(--pcr-card)] rounded-[20px]">
+                {/* Reagent Volumes Card - Moved up */}
+                <div className="absolute w-[429px] h-[365px] left-[79px] top-[1095px] bg-[var(--pcr-card)] rounded-[20px]">
                     <h3 className="absolute w-[284px] h-[41px] left-[72px] top-[21px] text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
                         Reagent volumes
                     </h3>
@@ -251,8 +226,8 @@ export default function RunSetup() {
                     ))}
                 </div>
 
-                {/* Pipette Tips Card */}
-                <div className="absolute w-[429px] h-[281px] left-[567px] top-[1253px] bg-[var(--pcr-card)] rounded-[20px]">
+                {/* Pipette Tips Card - Moved up */}
+                <div className="absolute w-[429px] h-[281px] left-[567px] top-[1095px] bg-[var(--pcr-card)] rounded-[20px]">
                     <h3 className="absolute w-[284px] h-[41px] left-[72px] top-[22px] text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
                         Pipette tips
                     </h3>
@@ -278,15 +253,6 @@ export default function RunSetup() {
             </div>
 
             {/* On-Screen Keyboards */}
-            {activeKeyboard === 'runId' && (
-                <OnScreenKeyboard
-                    type="normal"
-                    onKeyPress={handleKeyPress}
-                    onBackspace={handleBackspace}
-                    onClose={handleCloseKeyboard}
-                />
-            )}
-            
             {activeKeyboard === 'operator' && (
                 <OnScreenKeyboard
                     type="normal"

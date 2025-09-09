@@ -5,7 +5,7 @@ import { io, Socket } from 'socket.io-client'
 interface UseSocketReturn {
   socket: Socket | null
   isConnected: boolean
-  startPCRRun: (runData: any) => Promise<string | null>
+  startPCRRun: (runData: any) => Promise<string>
   stopPCRRun: (runId: string) => void
   getSystemStatus: () => void
 }
@@ -58,6 +58,10 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
       // Handle temperature updates
     })
 
+    socket.on('run_started', (data) => {
+      console.log('Run started:', data)
+    })
+
     socket.on('run_error', (data) => {
       console.error('PCR run error:', data)
       // Handle errors here
@@ -68,6 +72,10 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
       // Handle completion
     })
 
+    socket.on('system_status', (data) => {
+      console.log('System status:', data)
+    })
+
     // Cleanup on unmount
     return () => {
       socket.disconnect()
@@ -75,23 +83,41 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
   }, [serverUrl])
 
   // Function to start PCR run
-  const startPCRRun = async (runData: any): Promise<string | null> => {
+  const startPCRRun = async (runData: any): Promise<string> => {
     return new Promise((resolve, reject) => {
       if (!socketRef.current || !isConnected) {
         reject(new Error('Socket not connected'))
         return
       }
 
-      // Send start_pcr_run event with runData
-      socketRef.current.emit('start_pcr_run', runData, (response: any) => {
-        if (response.success) {
-          console.log('PCR run started successfully:', response.run_id)
-          resolve(response.run_id)
-        } else {
-          console.error('Failed to start PCR run:', response.error)
-          reject(new Error(response.error))
-        }
-      })
+      console.log('Emitting start_pcr_run event with data:', runData)
+
+      // Set a timeout in case the server doesn't respond
+      const timeout = setTimeout(() => {
+        reject(new Error('Server response timeout'))
+      }, 30000) // 30 second timeout
+
+      try {
+        // Send start_pcr_run event with runData and callback
+        socketRef.current.emit('start_pcr_run', runData, (response: any) => {
+          clearTimeout(timeout)
+          
+          console.log('Received response from server:', response)
+          
+          if (response && response.success) {
+            console.log('PCR run started successfully:', response.run_id)
+            resolve(response.run_id || 'unknown')
+          } else {
+            const errorMsg = response?.error || 'Unknown error occurred'
+            console.error('Failed to start PCR run:', errorMsg)
+            reject(new Error(errorMsg))
+          }
+        })
+      } catch (error) {
+        clearTimeout(timeout)
+        console.error('Error emitting start_pcr_run:', error)
+        reject(error)
+      }
     })
   }
 

@@ -1,78 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Settings, Wifi, HelpCircle, Lightbulb, Sun, Moon, X } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRunStore } from "@/lib/store"
 import RunSetup from "@/components/run-setup"
 import RunSetup2 from "@/components/run-setup-2"
-import { LoadReagents } from "@/components/load-reagents"
+import { LoadPlastics } from "@/components/load-plastics"
 import { LoadReagentsDeck } from "@/components/load-reagents-deck"
 import LoadSamples from "@/components/load-samples"
 import LoadSamplesRack from "@/components/load-samples-rack"
 import ElutionWellSelection from "@/components/elution-well-selection"
 import PreRunSummary from "@/components/pre-run-summary"
 import RunPage from "@/components/run-page"
-
-const DNAIcon = () => (
-  <svg viewBox="0 0 100 100" className="w-24 h-24 text-white">
-    <g fill="currentColor">
-      <circle cx="20" cy="20" r="3" />
-      <circle cx="35" cy="35" r="3" />
-      <circle cx="50" cy="50" r="3" />
-      <circle cx="65" cy="65" r="3" />
-      <circle cx="80" cy="80" r="3" />
-      <circle cx="15" cy="40" r="2" />
-      <circle cx="30" cy="55" r="2" />
-      <circle cx="45" cy="70" r="2" />
-      <circle cx="60" cy="85" r="2" />
-      <circle cx="25" cy="15" r="2" />
-      <circle cx="40" cy="30" r="2" />
-      <circle cx="55" cy="45" r="2" />
-      <circle cx="70" cy="60" r="2" />
-      <circle cx="85" cy="75" r="2" />
-    </g>
-  </svg>
-)
-
-const RNAIcon = () => (
-  <svg viewBox="0 0 100 100" className="w-24 h-24 text-white">
-    <g fill="currentColor">
-      <circle cx="50" cy="15" r="3" />
-      <rect x="47" y="25" width="6" height="15" rx="3" />
-      <circle cx="50" cy="45" r="3" />
-      <rect x="47" y="55" width="6" height="15" rx="3" />
-      <circle cx="50" cy="75" r="3" />
-      <circle cx="30" cy="25" r="2" />
-      <circle cx="70" cy="25" r="2" />
-      <circle cx="25" cy="45" r="2" />
-      <circle cx="75" cy="45" r="2" />
-      <circle cx="30" cy="65" r="2" />
-      <circle cx="70" cy="65" r="2" />
-    </g>
-  </svg>
-)
-
-const VirusIcon = () => (
-  <svg viewBox="0 0 100 100" className="w-24 h-24 text-white">
-    <g fill="currentColor">
-      <circle cx="50" cy="50" r="20" />
-      <circle cx="30" cy="30" r="4" />
-      <circle cx="70" cy="30" r="4" />
-      <circle cx="30" cy="70" r="4" />
-      <circle cx="70" cy="70" r="4" />
-      <circle cx="20" cy="50" r="3" />
-      <circle cx="80" cy="50" r="3" />
-      <circle cx="50" cy="20" r="3" />
-      <circle cx="50" cy="80" r="3" />
-      <circle cx="35" cy="25" r="2" />
-      <circle cx="65" cy="25" r="2" />
-      <circle cx="35" cy="75" r="2" />
-      <circle cx="65" cy="75" r="2" />
-    </g>
-  </svg>
-)
 
 const UVIcon = () => (
   <svg viewBox="0 0 100 100" className="w-20 h-20 text-white">
@@ -97,6 +39,13 @@ const HEPAIcon = () => (
     </g>
   </svg>
 )
+
+const sampleTypeOptions = [
+  { value: "Whole Blood DNA", label: "Whole Blood DNA" },
+  { value: "Fresh Tissue DNA", label: "Fresh Tissue DNA" },
+  { value: "Stool DNA", label: "Stool DNA" },
+  { value: "cfDNA", label: "cfDNA" },
+];
 
 export default function PCRDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -195,8 +144,8 @@ export default function PCRDashboard() {
     return <LoadReagentsDeck />
   }
 
-  if (currentPage === "load-reagents") {
-    return <LoadReagents />
+  if (currentPage === "load-plastics") {
+    return <LoadPlastics />
   }
 
   if (currentPage === "run-setup") {
@@ -269,7 +218,7 @@ export default function PCRDashboard() {
         onClick={() => handleProtocolClick("DNA")}
       >
         <div className="relative h-full flex items-center justify-center">
-          <DNAIcon />
+          <Image src="/DNA.png" alt="DNA Icon" width={120} height={160} className="object-contain mr-25" />
           <span className="absolute bottom-6 right-6 text-[36px] leading-[46px] font-normal text-[var(--pcr-text-primary)]">
             DNA
           </span>
@@ -278,10 +227,10 @@ export default function PCRDashboard() {
 
       <div
         className="absolute left-[392px] top-[592px] w-[295px] h-[295px] bg-[var(--pcr-card)] rounded-[20px] cursor-pointer active:bg-[var(--pcr-card-dark)] transition-colors"
-        onClick={() => handleProtocolClick("RNA")}
+        // onClick={() => handleProtocolClick("RNA")}
       >
         <div className="relative h-full flex items-center justify-center">
-          <RNAIcon />
+          <Image src="/RNA.png" alt="RNA Icon" width={140} height={180} className="object-contain mr-25" />
           <span className="absolute bottom-6 right-6 text-[36px] leading-[46px] font-normal text-[var(--pcr-text-primary)]">
             RNA
           </span>
@@ -290,10 +239,10 @@ export default function PCRDashboard() {
 
       <div
         className="absolute left-[701px] top-[592px] w-[295px] h-[295px] bg-[var(--pcr-card)] rounded-[20px] cursor-pointer active:bg-[var(--pcr-card-dark)] transition-colors"
-        onClick={() => handleProtocolClick("Virus")}
+        // onClick={() => handleProtocolClick("Virus")}
       >
         <div className="relative h-full flex items-center justify-center">
-          <VirusIcon />
+          <Image src="/Virus.png" alt="Virus Icon" width={150} height={150} className="object-contain mr-25 mb-20" />
           <span className="absolute bottom-6 right-6 text-[36px] leading-[46px] font-normal text-[var(--pcr-text-primary)]">
             Virus
           </span>
@@ -331,7 +280,7 @@ export default function PCRDashboard() {
         </div>
       </div>
 
-      <div className="absolute left-[84px] top-[1534px] w-[446px] h-[174px] bg-[var(--pcr-accent)] rounded-[20px] cursor-pointer active:opacity-90 transition-opacity">
+      <div className="absolute left-[84px] top-[1534px] w-[446px] h-[174px] bg-[var(--pcr-card)] rounded-[20px] cursor-pointer active:opacity-90 transition-opacity">
         <div className="relative h-full">
           <span className="absolute top-6 left-6 text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">
             System light
@@ -359,10 +308,12 @@ export default function PCRDashboard() {
           onClick={closeModal}
         >
           <div
-            className="absolute w-[638px] h-[579px] bg-[var(--pcr-card)] rounded-[20px] shadow-2xl border border-[var(--pcr-card-dark)] transform transition-all duration-300 ease-in-out animate-in fade-in-0 zoom-in-95"
+            className="absolute w-[638px] bg-[var(--pcr-card)] rounded-[20px] shadow-2xl border border-[var(--pcr-card-dark)] transform transition-all duration-300 ease-in-out animate-in fade-in-0 zoom-in-95"
             onClick={(e) => e.stopPropagation()}
             style={{
               boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)",
+              // Calculate dynamic height based on number of options
+              height: `${170 + (sampleTypeOptions.length * 92) + ((sampleTypeOptions.length - 1) * 35) + 60}px`
             }}
           >
             <button
@@ -378,38 +329,23 @@ export default function PCRDashboard() {
               </h2>
             </div>
 
-            <div className="absolute left-[calc(50%-549px/2)] top-[170px] w-[549px] h-[92px]">
-              <button
-                onClick={() => handleSampleTypeSelect("Whole Blood DNA")}
-                className="w-full h-full bg-[var(--pcr-card-dark)] rounded-[20px] active:bg-[#3a3f45] transition-all duration-200 ease-in-out transform active:scale-95"
+            {/* Dynamic option rendering */}
+            {sampleTypeOptions.map((option, index) => (
+              <div 
+                key={option.value}
+                className="absolute left-[calc(50%-549px/2)] w-[549px] h-[92px]"
+                style={{ top: `${170 + (index * 127)}px` }} // 92px height + 35px spacing
               >
-                <span className="text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)] ml-6 text-left block">
-                  Whole Blood DNA
-                </span>
-              </button>
-            </div>
-
-            <div className="absolute left-[calc(50%-549px/2)] top-[297px] w-[549px] h-[92px]">
-              <button
-                onClick={() => handleSampleTypeSelect("Fresh Tissue DNA")}
-                className="w-full h-full bg-[var(--pcr-card-dark)] rounded-[20px] active:bg-[#3a3f45] transition-all duration-200 ease-in-out transform active:scale-95"
-              >
-                <span className="text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)] ml-6 text-left block">
-                  Fresh Tissue DNA
-                </span>
-              </button>
-            </div>
-
-            <div className="absolute left-[calc(50%-549px/2)] top-[424px] w-[549px] h-[92px]">
-              <button
-                onClick={() => handleSampleTypeSelect("Stool DNA")}
-                className="w-full h-full bg-[var(--pcr-card-dark)] rounded-[20px] active:bg-[#3a3f45] transition-all duration-200 ease-in-out transform active:scale-95"
-              >
-                <span className="text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)] ml-6 text-left block">
-                  Stool DNA
-                </span>
-              </button>
-            </div>
+                <button
+                  onClick={() => handleSampleTypeSelect(option.value)}
+                  className="w-full h-full bg-[var(--pcr-card-dark)] rounded-[20px] active:bg-[#3a3f45] transition-all duration-200 ease-in-out transform active:scale-95"
+                >
+                  <span className="text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)] ml-6 text-left block">
+                    {option.label}
+                  </span>
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

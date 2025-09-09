@@ -140,7 +140,7 @@ export function LoadReagentsDeck() {
                     showNext={true}
                     backDisabled={false}
                     nextDisabled={!allReagentsLoaded}
-                    onBack={() => setCurrentPage("load-reagents")}
+                    onBack={() => setCurrentPage("load-plastics")}
                     onNext={() => setCurrentPage("load-samples")} // Navigate to load-samples page
                 />
             </div>

@@ -29,10 +29,10 @@ export default function PreRunSummary() {
             // First simulate the system check UI
             await simulateSystemCheck()
 
-            // Then send the actual run data to Python server
+            // Send the run data to Python server (don't await)
             console.log('Sending run data to Python server:', runData)
-
-            const startedRunId = await startPCRRun({
+            
+            startPCRRun({
                 run_id: runData.runId,
                 operator_name: runData.operatorName,
                 number_of_samples: runData.numberOfSamples,
@@ -43,16 +43,12 @@ export default function PreRunSummary() {
                 pipette_tips: runData.pipetteTips
             })
 
-            console.log('PCR run started with ID:', startedRunId)
-
-            // Navigate to run page after successful start
-            setTimeout(() => {
-                setShowSystemCheckModal(false)
-                setCurrentPage("run-page")
-            }, 1000)
+            // Immediately hide modal and navigate
+            setShowSystemCheckModal(false)
+            setCurrentPage("run-page")
 
         } catch (error) {
-            console.error('Failed to start PCR run:', error)
+            console.error('Failed during system check:', error)
             setStartError(error instanceof Error ? error.message : 'Unknown error')
             setShowSystemCheckModal(false)
         } finally {
