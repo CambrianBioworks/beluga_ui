@@ -4,61 +4,101 @@ import { useState, useEffect } from "react"
 import { useRunStore } from "../lib/store"
 import NavigationButtons from "./navigation-buttons"
 import { Check } from "lucide-react"
+import { useSocket } from "../lib/useSocket"
+import { AlertTriangle } from "lucide-react"
 
 export default function PreRunSummary() {
     const { runData, setCurrentPage } = useRunStore()
+    const [isStarting, setIsStarting] = useState(false)
+    const [startError, setStartError] = useState<string | null>(null)
+    const { isConnected, startPCRRun } = useSocket()
+
     const { runId, operatorName, numberOfSamples, selectedWells, pipetteTips } = runData
     const [showSystemCheckModal, setShowSystemCheckModal] = useState(false)
     const [progress, setProgress] = useState(0)
     const [currentCheck, setCurrentCheck] = useState("Checking tip pickup")
 
     const handleBack = () => setCurrentPage("elution-well-selection")
-    
-    const handleStartRun = () => {
+
+    const handleStartRun = async () => {
+        setIsStarting(true)
+        setStartError(null)
         setShowSystemCheckModal(true)
-        // Simulate system check progress
-        simulateSystemCheck()
+
+        try {
+            // First simulate the system check UI
+            await simulateSystemCheck()
+
+            // Then send the actual run data to Python server
+            console.log('Sending run data to Python server:', runData)
+
+            const startedRunId = await startPCRRun({
+                run_id: runData.runId,
+                operator_name: runData.operatorName,
+                number_of_samples: runData.numberOfSamples,
+                protocol_type: runData.protocolType,
+                sample_type: runData.sampleType,
+                selected_wells: runData.selectedWells,
+                reagent_volumes: runData.reagentVolumes,
+                pipette_tips: runData.pipetteTips
+            })
+
+            console.log('PCR run started with ID:', startedRunId)
+
+            // Navigate to run page after successful start
+            setTimeout(() => {
+                setShowSystemCheckModal(false)
+                setCurrentPage("run-page")
+            }, 1000)
+
+        } catch (error) {
+            console.error('Failed to start PCR run:', error)
+            setStartError(error instanceof Error ? error.message : 'Unknown error')
+            setShowSystemCheckModal(false)
+        } finally {
+            setIsStarting(false)
+        }
     }
 
-    const simulateSystemCheck = () => {
-        const checks = [
-            "Initializing system",
-            "Checking tip pickup", 
-            "Validating reagent positions",
-            "Testing pipette movement",
-            "Verifying sample positions",
-            "Final system validation"
-        ]
-        
-        let currentProgress = 0
-        let checkIndex = 0
-        
-        const interval = setInterval(() => {
-            currentProgress += Math.random() * 15 + 5 // Random progress increment
-            setProgress(Math.min(currentProgress, 100))
-            
-            if (currentProgress > (checkIndex + 1) * 16.67) {
-                checkIndex++
-                if (checkIndex < checks.length) {
-                    setCurrentCheck(checks[checkIndex])
+    const simulateSystemCheck = (): Promise<void> => {
+        return new Promise((resolve) => {
+            // Your existing simulateSystemCheck code, but replace the setTimeout with resolve()
+            const checks = [
+                "Initializing system",
+                "Checking tip pickup",
+                "Validating reagent positions",
+                "Testing pipette movement",
+                "Verifying sample positions",
+                "Final system validation"
+            ]
+
+            let currentProgress = 0
+            let checkIndex = 0
+
+            const interval = setInterval(() => {
+                currentProgress += Math.random() * 15 + 5
+                setProgress(Math.min(currentProgress, 100))
+
+                if (currentProgress > (checkIndex + 1) * 16.67) {
+                    checkIndex++
+                    if (checkIndex < checks.length) {
+                        setCurrentCheck(checks[checkIndex])
+                    }
                 }
-            }
-            
-            if (currentProgress >= 100) {
-                clearInterval(interval)
-                setTimeout(() => {
-                    setShowSystemCheckModal(false)
-                    // Navigate to run page after system check is complete
-                    setCurrentPage("run-page")
-                }, 1000)
-            }
-        }, 800)
+
+                if (currentProgress >= 100) {
+                    clearInterval(interval)
+                    resolve() // Change this from the setTimeout to resolve()
+                }
+            }, 800)
+        })
     }
 
     const closeModal = () => {
         setShowSystemCheckModal(false)
         setProgress(0)
         setCurrentCheck("Checking tip pickup")
+        setStartError(null)
     }
 
     return (
@@ -74,6 +114,22 @@ export default function PreRunSummary() {
 
                 {/* Blue accent line */}
                 <div className="w-[912px] h-[2px] bg-[var(--pcr-accent)] rounded-[20px] mb-[60px]" />
+
+                {/* WebSocket Status Indicator */}
+                <div className="flex items-center gap-3 mb-[20px]">
+                    <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <span className="text-[20px]">
+                        Server: {isConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                </div>
+
+                {/* Error Message */}
+                {startError && (
+                    <div className="bg-red-500/10 border border-red-500 rounded-[12px] p-4 mb-[20px] flex items-center gap-3">
+                        <AlertTriangle className="w-6 h-6 text-red-500" />
+                        <span className="text-red-400">Failed to start run: {startError}</span>
+                    </div>
+                )}
 
                 {/* Run configuration */}
                 <div className="mb-[80px]">
@@ -160,7 +216,7 @@ export default function PreRunSummary() {
                         showBack
                         showNext
                         nextLabel="Start run"
-                        nextDisabled={false}
+                        nextDisabled={!isConnected || isStarting} // Add this line
                         onBack={handleBack}
                         onNext={handleStartRun}
                     />
@@ -171,15 +227,15 @@ export default function PreRunSummary() {
             {showSystemCheckModal && (
                 <>
                     {/* Backdrop with blur */}
-                    <div 
+                    <div
                         className="fixed inset-0 backdrop-blur-sm z-50"
                         onClick={closeModal}
                     />
-                    
+
                     {/* Modal */}
                     <div className="fixed inset-0 z-50 flex items-center justify-center">
                         <div className="relative w-[912px] h-[350px] bg-[var(--pcr-card)] rounded-[20px] flex flex-col items-center justify-center px-[48px] shadow-2xl border border-[var(--pcr-text-primary)]/10">
-                            
+
                             {/* System check in progress title */}
                             <div className="w-[558px] h-[42px] mb-[32px]">
                                 <h2 className="font-normal text-[36px] leading-[40px] text-[var(--pcr-text-primary)] text-center">
@@ -206,7 +262,7 @@ export default function PreRunSummary() {
                                 {/* Progress bar container */}
                                 <div className="relative w-[816px] h-[19px] bg-[var(--pcr-card-dark)] rounded-[9.5px]">
                                     {/* Progress bar fill */}
-                                    <div 
+                                    <div
                                         className="absolute h-[19px] bg-[var(--pcr-accent)] rounded-[9.5px] transition-all duration-300 ease-out"
                                         style={{ width: `${(progress / 100) * 816}px` }}
                                     />

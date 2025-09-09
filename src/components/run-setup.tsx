@@ -97,7 +97,7 @@ export default function RunSetup() {
     }
 
     const handleNext = () => {
-        setCurrentPage("load-reagents")
+        setCurrentPage("run-setup-2")
     }
 
     const handleFieldFocus = (field: 'runId' | 'operator' | 'samples') => {

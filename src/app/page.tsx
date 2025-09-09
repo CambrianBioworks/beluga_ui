@@ -6,6 +6,7 @@ import { Settings, Wifi, HelpCircle, Lightbulb, Sun, Moon, X } from "lucide-reac
 import { useTheme } from "next-themes"
 import { useRunStore } from "@/lib/store"
 import RunSetup from "@/components/run-setup"
+import RunSetup2 from "@/components/run-setup-2"
 import { LoadReagents } from "@/components/load-reagents"
 import { LoadReagentsDeck } from "@/components/load-reagents-deck"
 import LoadSamples from "@/components/load-samples"
@@ -202,6 +203,10 @@ export default function PCRDashboard() {
     return <RunSetup />
   }
 
+  if (currentPage === "run-setup-2") {
+    return <RunSetup2 />
+  }
+
   if (currentPage === "run-page") {
     return <RunPage />
   }
@@ -247,7 +252,7 @@ export default function PCRDashboard() {
         </div>
       </div>
 
-      <div className="absolute left-[84px] top-[310px] w-[380px] h-[44px]">
+      <div className="absolute left-[84px] top-[310px] w-[420px] h-[44px]">
         <div className="text-[36px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">
           {formatDate(currentTime)}
         </div>
