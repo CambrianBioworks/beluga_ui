@@ -76,7 +76,7 @@ export default function RunPage() {
         }, 1000)
 
         return () => clearInterval(timer)
-    }, [isPaused])
+    }, [isPaused, protocolSteps])
 
     const handlePauseRun = () => {
         setIsPaused(!isPaused)

@@ -362,3 +362,9 @@
     animation: none;
   }
 }
+
+/* Override for grid labels - allow smaller sizes */
+.grid-label {
+  min-width: unset !important;
+  min-height: unset !important;
+}

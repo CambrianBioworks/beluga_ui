@@ -20,6 +20,44 @@ export default function PreRunSummary() {
 
     const handleBack = () => setCurrentPage("elution-well-selection")
 
+    // const handleStartRun = async () => {
+    //     setIsStarting(true)
+    //     setStartError(null)
+    //     setShowSystemCheckModal(true)
+
+    //     try {
+    //         // First simulate the system check UI
+    //         await simulateSystemCheck()
+
+    //         // Then send the actual run data to Python server
+    //         console.log('Sending run data to Python server:', runData)
+
+    //         const startedRunId = await startPCRRun({
+    //             run_id: runData.runId,
+    //             operator_name: runData.operatorName,
+    //             number_of_samples: runData.numberOfSamples,
+    //             protocol_type: runData.protocolType,
+    //             sample_type: runData.sampleType,
+    //             selected_wells: runData.selectedWells,
+    //             reagent_volumes: runData.reagentVolumes,
+    //             pipette_tips: runData.pipetteTips
+    //         })
+
+    //         console.log('PCR run started with ID:', startedRunId)
+
+    //         // Navigate to run page after successful start
+    //             setShowSystemCheckModal(false)
+    //             setCurrentPage("run-page")
+
+    //     } catch (error) {
+    //         console.error('Failed to start PCR run:', error)
+    //         setStartError(error instanceof Error ? error.message : 'Unknown error')
+    //         setShowSystemCheckModal(false)
+    //     } finally {
+    //         setIsStarting(false)
+    //     }
+    // }
+
     const handleStartRun = async () => {
         setIsStarting(true)
         setStartError(null)
@@ -31,7 +69,7 @@ export default function PreRunSummary() {
 
             // Send the run data to Python server (don't await)
             console.log('Sending run data to Python server:', runData)
-            
+
             startPCRRun({
                 run_id: runData.runId,
                 operator_name: runData.operatorName,
@@ -171,24 +209,26 @@ export default function PreRunSummary() {
                     <h2 className="text-[36px] font-normal mb-[32px]">Elution well map</h2>
                     <div className="w-[912px] bg-[var(--pcr-card)] rounded-[20px] px-[35px] py-[24px]">
                         <div className="text-[24px] mb-[20px]">Selected wells:</div>
-                        <div className="flex flex-wrap gap-[24px]">
-                            {selectedWells?.length ? (
-                                selectedWells.map((well, index) => (
-                                    <div
-                                        key={well}
-                                        className="w-[190px] h-[68px] bg-[var(--pcr-card-dark)] rounded-[20px] flex items-center justify-between px-[24px]"
-                                    >
-                                        <span className="text-[24px] font-light text-[var(--pcr-text-primary)]">{well}</span>
-                                        <div className="w-[37px] h-[37px] bg-[var(--pcr-text-primary)] rounded-full flex items-center justify-center">
-                                            <span className="text-[20px] text-[var(--pcr-bg)]">{index + 1}</span>
+                        <div className="max-h-[200px] overflow-y-auto">
+                            <div className="flex flex-wrap gap-[24px] pr-[10px]">
+                                {selectedWells?.length ? (
+                                    selectedWells.map((well, index) => (
+                                        <div
+                                            key={well}
+                                            className="w-[187px] h-[68px] bg-[var(--pcr-card-dark)] rounded-[20px] flex items-center justify-between px-[24px]"
+                                        >
+                                            <span className="text-[24px] font-light text-[var(--pcr-text-primary)]">{well}</span>
+                                            <div className="w-[37px] h-[37px] bg-[var(--pcr-text-primary)] rounded-full flex items-center justify-center">
+                                                <span className="text-[20px] text-[var(--pcr-bg)]">{index + 1}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <span className="text-[20px] text-[var(--pcr-text-secondary)]">
-                                    No wells selected
-                                </span>
-                            )}
+                                    ))
+                                ) : (
+                                    <span className="text-[20px] text-[var(--pcr-text-secondary)]">
+                                        No wells selected
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -207,7 +247,7 @@ export default function PreRunSummary() {
                 </div>
 
                 {/* Navigation buttons at bottom */}
-                <div className="mt-auto flex justify-center mb-14">
+                <div className="mt-auto flex justify-center mb-16">
                     <NavigationButtons
                         showBack
                         showNext

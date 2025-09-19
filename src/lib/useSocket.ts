@@ -8,6 +8,7 @@ interface UseSocketReturn {
   startPCRRun: (runData: any) => Promise<string>
   stopPCRRun: (runId: string) => void
   getSystemStatus: () => void
+  scanBarcode: (scanData?: any) => Promise<any>  // New barcode scanner function
 }
 
 export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocketReturn {
@@ -76,6 +77,21 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
       console.log('System status:', data)
     })
 
+    // Barcode scanner event listeners
+    socket.on('scan_started', (data) => {
+      console.log('Barcode scan started:', data)
+    })
+
+    socket.on('scan_complete', (data) => {
+      console.log('Barcode scan completed:', data)
+      // Handle scan completion with result data
+    })
+
+    socket.on('scan_error', (data) => {
+      console.error('Barcode scan error:', data)
+      // Handle scan errors
+    })
+
     // Cleanup on unmount
     return () => {
       socket.disconnect()
@@ -121,6 +137,45 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     })
   }
 
+  // Function to scan barcode
+  const scanBarcode = async (scanData: any = {}): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      console.log('Emitting scan_barcode event with data:', scanData)
+
+      // Set a timeout in case the server doesn't respond
+      const timeout = setTimeout(() => {
+        reject(new Error('Barcode scan timeout'))
+      }, 30000) // 30 second timeout
+
+      try {
+        // Send scan_barcode event with scanData and callback
+        socketRef.current.emit('scan_barcode', scanData, (response: any) => {
+          clearTimeout(timeout)
+          
+          console.log('Received barcode scan response from server:', response)
+          
+          if (response && response.success) {
+            console.log('Barcode scan completed successfully:', response.data)
+            resolve(response.data) // Return the JSON data from barcode scanner
+          } else {
+            const errorMsg = response?.error || 'Unknown error occurred during barcode scan'
+            console.error('Failed to scan barcode:', errorMsg)
+            reject(new Error(errorMsg))
+          }
+        })
+      } catch (error) {
+        clearTimeout(timeout)
+        console.error('Error emitting scan_barcode:', error)
+        reject(error)
+      }
+    })
+  }
+
   // Function to stop PCR run
   const stopPCRRun = (runId: string) => {
     if (socketRef.current && isConnected) {
@@ -141,5 +196,6 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     startPCRRun,
     stopPCRRun,
     getSystemStatus,
+    scanBarcode,  // Export the new barcode scanner function
   }
 }

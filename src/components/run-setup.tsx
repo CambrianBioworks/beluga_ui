@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRunStore } from "@/lib/store"
 import NavigationButtons from "./navigation-buttons"
 import { Delete, Space } from "lucide-react"
+import { calculateReagents } from "@/utils/reagent-calculator"
 
 interface KeyboardProps {
     onKeyPress: (key: string) => void
@@ -21,7 +22,7 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
 
     const numberKeys = [
         ['1', '2', '3'],
-        ['4', '5', '6'], 
+        ['4', '5', '6'],
         ['7', '8', '9'],
         ['0']
     ]
@@ -32,11 +33,11 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
         <>
             {/* Fully transparent backdrop - only for closing keyboard */}
             <div className="fixed inset-0 z-40" onClick={onClose} />
-            
+
             {/* Keyboard */}
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-[var(--pcr-card)] border-t-2 border-[var(--pcr-card-dark)] p-[40px] shadow-2xl">
                 <div className="max-w-[1080px] mx-auto">
-                    
+
                     {/* Keyboard rows */}
                     <div className="space-y-[16px]">
                         {keys.map((row, rowIndex) => (
@@ -52,7 +53,7 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
                                 ))}
                             </div>
                         ))}
-                        
+
                         {/* Bottom row with special keys */}
                         <div className="flex justify-center gap-[12px] mt-[24px]">
                             {type === 'normal' && (
@@ -64,7 +65,7 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
                                     Space
                                 </button>
                             )}
-                            
+
                             <button
                                 onClick={onBackspace}
                                 className="w-[150px] h-[80px] bg-red-500 rounded-[12px] text-[24px] font-normal text-white active:bg-red-600 transition-colors flex items-center justify-center gap-[12px] shadow-lg border border-red-400"
@@ -72,7 +73,7 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
                                 <Delete className="w-[24px] h-[24px]" />
                                 Delete
                             </button>
-                            
+
                             <button
                                 onClick={onClose}
                                 className="w-[150px] h-[80px] bg-[var(--pcr-accent)] rounded-[12px] text-[24px] font-normal text-white active:bg-[#4a66b3] transition-colors shadow-lg border border-[var(--pcr-accent)]"
@@ -88,15 +89,37 @@ function OnScreenKeyboard({ onKeyPress, onBackspace, onClose, type }: KeyboardPr
 }
 
 export default function RunSetup() {
-    const { runData, setOperatorName, setNumberOfSamples, setCurrentPage } = useRunStore()
+    const { runData, setOperatorName, setNumberOfSamples, setCurrentPage, setPipetteTips, setReagentVolumes } = useRunStore()
     const [activeKeyboard, setActiveKeyboard] = useState<'operator' | 'samples' | null>(null)
     const [activeField, setActiveField] = useState<string>('')
+
+    const { calculatedReagents, calculatedTips } = useMemo(() => {
+        if (runData.numberOfSamples && runData.sampleType) {
+            const numSamples = parseInt(runData.numberOfSamples)
+            if (!isNaN(numSamples) && numSamples > 0) {
+                const { reagentVolumes, pipetteTips } = calculateReagents(
+                    runData.sampleType,
+                    numSamples
+                )
+                return {
+                    calculatedReagents: reagentVolumes,
+                    calculatedTips: pipetteTips
+                }
+            }
+        }
+        return {
+            calculatedReagents: [],
+            calculatedTips: []
+        }
+    }, [runData.numberOfSamples, runData.sampleType])
 
     const handleBack = () => {
         setCurrentPage("dashboard")
     }
 
     const handleNext = () => {
+        setReagentVolumes(calculatedReagents)
+        setPipetteTips(calculatedTips)
         setCurrentPage("run-setup-2")
     }
 
@@ -111,7 +134,21 @@ export default function RunSetup() {
                 setOperatorName(runData.operatorName + key)
                 break
             case 'samples':
-                setNumberOfSamples(runData.numberOfSamples + key)
+                const newValue = runData.numberOfSamples + key
+                const numValue = parseInt(newValue)
+
+                // Determine max samples based on sample type
+                const isCfDNA = runData.sampleType && runData.sampleType.toLowerCase() === 'cfdna'
+                const maxSamples = isCfDNA ? 16 : 32
+
+                // Only allow the input if it's within the limit
+                if (!isNaN(numValue) && numValue <= maxSamples) {
+                    setNumberOfSamples(newValue)
+                }
+                // If it's just a single digit and within range, allow it
+                else if (newValue.length === 1 && parseInt(newValue) <= maxSamples) {
+                    setNumberOfSamples(newValue)
+                }
                 break
         }
     }
@@ -132,8 +169,22 @@ export default function RunSetup() {
         setActiveField('')
     }
 
-    const isFormValid =
-        runData.operatorName.trim() !== "" && runData.numberOfSamples.trim() !== ""
+    const isFormValid = () => {
+        if (runData.operatorName.trim() === "" || runData.numberOfSamples.trim() === "") {
+            return false
+        }
+
+        const numSamples = parseInt(runData.numberOfSamples)
+        if (isNaN(numSamples) || numSamples <= 0) {
+            return false
+        }
+
+        // Check sample limit based on sample type
+        const isCfDNA = runData.sampleType && runData.sampleType.toLowerCase() === 'cfdna'
+        const maxSamples = isCfDNA ? 16 : 32
+
+        return numSamples <= maxSamples
+    }
 
     return (
         <>
@@ -161,7 +212,7 @@ export default function RunSetup() {
 
                 {/* Main Configuration Card - Reduced height since no Run ID */}
                 <div className="absolute w-[912px] h-[534px] left-[84px] top-[407px] bg-[var(--pcr-card)] rounded-[20px]">
-                    
+
                     {/* Operator Name - Moved up and centered */}
                     <div className="absolute w-[835px] h-[158px] left-[39px] top-[80px]">
                         <label className="absolute w-[249px] h-[41px] left-0 top-0 text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
@@ -169,11 +220,10 @@ export default function RunSetup() {
                         </label>
                         <button
                             onClick={() => handleFieldFocus('operator')}
-                            className={`absolute w-[835px] h-[92px] left-0 top-[66px] bg-[var(--pcr-input-bg)] rounded-[20px] px-[32px] text-left text-[24px] font-light border-2 transition-colors z-60 ${
-                                activeField === 'operator' 
-                                    ? 'border-[var(--pcr-accent)] text-[var(--pcr-accent)]' 
-                                    : 'border-transparent text-[var(--pcr-text-primary)]'
-                            }`}
+                            className={`absolute w-[835px] h-[92px] left-0 top-[66px] bg-[var(--pcr-input-bg)] rounded-[20px] px-[32px] text-left text-[24px] font-light border-2 transition-colors z-60 ${activeField === 'operator'
+                                ? 'border-[var(--pcr-accent)] text-[var(--pcr-accent)]'
+                                : 'border-transparent text-[var(--pcr-text-primary)]'
+                                }`}
                         >
                             {runData.operatorName || (
                                 <span className="text-[var(--pcr-text-light)]">Enter operator name</span>
@@ -183,16 +233,19 @@ export default function RunSetup() {
 
                     {/* Number of Samples - Moved up and centered */}
                     <div className="absolute w-[835px] h-[158px] left-[39px] top-[296px]">
-                        <label className="absolute w-[298px] h-[41px] left-0 top-0 text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
-                            Number of samples
+                        <label className="absolute w-[500px] h-[41px] left-0 top-0 text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
+                            Number of samples {runData.sampleType && (
+                                <span className="text-[24px] text-[var(--pcr-text-light)]">
+                                    (max {runData.sampleType.toLowerCase() === 'cfdna' ? '16' : '32'})
+                                </span>
+                            )}
                         </label>
                         <button
                             onClick={() => handleFieldFocus('samples')}
-                            className={`absolute w-[835px] h-[92px] left-0 top-[66px] bg-[var(--pcr-input-bg)] rounded-[20px] px-[32px] text-left text-[24px] font-light border-2 transition-colors z-60 ${
-                                activeField === 'samples' 
-                                    ? 'border-[var(--pcr-accent)] text-[var(--pcr-accent)]' 
-                                    : 'border-transparent text-[var(--pcr-text-primary)]'
-                            }`}
+                            className={`absolute w-[835px] h-[92px] left-0 top-[66px] bg-[var(--pcr-input-bg)] rounded-[20px] px-[32px] text-left text-[24px] font-light border-2 transition-colors z-60 ${activeField === 'samples'
+                                ? 'border-[var(--pcr-accent)] text-[var(--pcr-accent)]'
+                                : 'border-transparent text-[var(--pcr-text-primary)]'
+                                }`}
                         >
                             {runData.numberOfSamples || (
                                 <span className="text-[var(--pcr-text-light)]">Enter number of samples</span>
@@ -206,49 +259,79 @@ export default function RunSetup() {
                     Auto calculated requirements
                 </h2>
 
-                {/* Reagent Volumes Card - Moved up */}
-                <div className="absolute w-[429px] h-[365px] left-[79px] top-[1095px] bg-[var(--pcr-card)] rounded-[20px]">
-                    <h3 className="absolute w-[284px] h-[41px] left-[72px] top-[21px] text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
+                {/* Reagent Volumes Card */}
+                <div className="absolute w-[429px] h-[395px] left-[79px] top-[1095px] bg-[var(--pcr-card)] rounded-[20px] overflow-hidden">
+                    <h3 className="absolute w-[284px] h-[41px] left-[72px] top-[21px] text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px] z-10 bg-[var(--pcr-card)]">
                         Reagent volumes
                     </h3>
 
-                    {/* Reagent Volume Fields */}
-                    {[0, 1, 2].map((index) => (
-                        <div
-                            key={index}
-                            className="absolute w-[353px] h-[68px] left-[39px] bg-[var(--pcr-input-bg)] rounded-[20px]"
-                            style={{ top: `${91 + index * 92}px` }}
-                        >
-                            <div className="flex items-center justify-center h-full text-[var(--pcr-text-light)] text-[38px] font-light">
-                                -
-                            </div>
-                        </div>
-                    ))}
+                    {/* Scrollable container for reagent volumes */}
+                    <div className="absolute top-[91px] left-[39px] right-[37px] bottom-[20px] overflow-y-auto">
+                        {calculatedReagents.length > 0 ? (
+                            calculatedReagents.map((volume, index) => (
+                                <div
+                                    key={index}
+                                    className="w-[353px] h-[68px] bg-[var(--pcr-input-bg)] rounded-[20px] mb-[24px]"
+                                >
+                                    <div className="flex items-center justify-center h-full text-[var(--pcr-text-primary)] text-[20px] font-light px-[20px]">
+                                        {volume}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            // Show 3 empty bars when no data
+                            [1, 2, 3].map((_, index) => (
+                                <div
+                                    key={index}
+                                    className="w-[353px] h-[68px] bg-[var(--pcr-input-bg)] rounded-[20px] mb-[24px]"
+                                >
+                                    <div className="flex items-center justify-center h-full text-[var(--pcr-text-light)] text-[38px] font-light">
+                                        -
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
 
-                {/* Pipette Tips Card - Moved up */}
-                <div className="absolute w-[429px] h-[281px] left-[567px] top-[1095px] bg-[var(--pcr-card)] rounded-[20px]">
-                    <h3 className="absolute w-[284px] h-[41px] left-[72px] top-[22px] text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px]">
+                {/* Pipette Tips Card */}
+                <div className="absolute w-[429px] h-[301px] left-[567px] top-[1095px] bg-[var(--pcr-card)] rounded-[20px] overflow-hidden">
+                    <h3 className="absolute w-[284px] h-[41px] left-[72px] top-[22px] text-[var(--pcr-text-primary)] text-[32px] font-normal leading-[40px] z-10 bg-[var(--pcr-card)]">
                         Pipette tips
                     </h3>
 
-                    {/* Pipette Tip Fields */}
-                    {[0, 1].map((index) => (
-                        <div
-                            key={index}
-                            className="absolute w-[353px] h-[68px] left-[38px] bg-[var(--pcr-input-bg)] rounded-[20px]"
-                            style={{ top: `${92 + index * 92}px` }}
-                        >
-                            <div className="flex items-center justify-center h-full text-[var(--pcr-text-light)] text-[38px] font-light">
-                                -
-                            </div>
-                        </div>
-                    ))}
+                    {/* Scrollable container for pipette tips */}
+                    <div className="absolute top-[92px] left-[38px] right-[38px] bottom-[20px] overflow-y-auto">
+                        {calculatedTips.length > 0 ? (
+                            calculatedTips.map((tips, index) => (
+                                <div
+                                    key={index}
+                                    className="w-[353px] h-[68px] bg-[var(--pcr-input-bg)] rounded-[20px] mb-[24px]"
+                                >
+                                    <div className="flex items-center justify-center h-full text-[var(--pcr-text-primary)] text-[20px] font-light">
+                                        {tips}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            // Show 2 empty bars when no data
+                            [1, 2].map((_, index) => (
+                                <div
+                                    key={index}
+                                    className="w-[353px] h-[68px] bg-[var(--pcr-input-bg)] rounded-[20px] mb-[24px]"
+                                >
+                                    <div className="flex items-center justify-center h-full text-[var(--pcr-text-light)] text-[38px] font-light">
+                                        -
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
 
                 {/* Navigation Buttons */}
                 <div className="absolute bottom-20 left-0 right-0 flex justify-center py-4">
-                    <NavigationButtons onBack={handleBack} onNext={handleNext} nextDisabled={!isFormValid} backDisabled={false} />
+                    <NavigationButtons onBack={handleBack} onNext={handleNext} nextDisabled={!isFormValid()} backDisabled={false} />
                 </div>
             </div>
 
@@ -261,7 +344,7 @@ export default function RunSetup() {
                     onClose={handleCloseKeyboard}
                 />
             )}
-            
+
             {activeKeyboard === 'samples' && (
                 <OnScreenKeyboard
                     type="number"

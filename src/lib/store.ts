@@ -59,8 +59,8 @@ const initialRunData: RunData = {
   numberOfSamples: "",
   sampleInputMethod: "",
   elutionType: "",
-  reagentVolumes: ["-", "-", "-"],
-  pipetteTips: ["-", "-"],
+  reagentVolumes: [],
+  pipetteTips: [],
   selectedWells: [],
 }
 

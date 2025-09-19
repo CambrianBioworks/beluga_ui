@@ -52,7 +52,7 @@ export default function ElutionWellSelection() {
     }
 
     const handleBack = () => {
-        setCurrentPage("load-samples-rack")
+        setCurrentPage("tip-box")
     }
 
     const handleNext = () => {
@@ -233,7 +233,7 @@ export default function ElutionWellSelection() {
             </div>
 
             {/* Navigation */}
-            <div className="absolute bottom-6 left-0 right-0 flex justify-center p-8">
+            <div className="absolute bottom-12 left-0 right-0 flex justify-center p-8">
                 <NavigationButtons
                     showBack={true}
                     showNext={true}

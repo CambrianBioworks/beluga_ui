@@ -11,7 +11,7 @@ import RunSetup2 from "@/components/run-setup-2"
 import { LoadPlastics } from "@/components/load-plastics"
 import { LoadReagentsDeck } from "@/components/load-reagents-deck"
 import LoadSamples from "@/components/load-samples"
-import LoadSamplesRack from "@/components/load-samples-rack"
+import TipBox from "@/components/tip-box"
 import ElutionWellSelection from "@/components/elution-well-selection"
 import PreRunSummary from "@/components/pre-run-summary"
 import RunPage from "@/components/run-page"
@@ -80,7 +80,7 @@ export default function PCRDashboard() {
 
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [currentPage, setCurrentPage])
+  }, [currentPage])
 
   useEffect(() => {
     setMounted(true)
@@ -132,8 +132,8 @@ export default function PCRDashboard() {
     return <ElutionWellSelection />
   }
 
-  if (currentPage === "load-samples-rack") {
-    return <LoadSamplesRack />
+  if (currentPage === "tip-box") {
+    return <TipBox />
   }
 
   if (currentPage === "load-samples") {
@@ -201,7 +201,7 @@ export default function PCRDashboard() {
         </div>
       </div>
 
-      <div className="absolute left-[84px] top-[310px] w-[420px] h-[44px]">
+      <div className="absolute left-[84px] top-[310px] w-[500px] h-[44px]">
         <div className="text-[36px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">
           {formatDate(currentTime)}
         </div>
