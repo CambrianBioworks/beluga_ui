@@ -15,6 +15,7 @@ import TipBox from "@/components/tip-box"
 import ElutionWellSelection from "@/components/elution-well-selection"
 import PreRunSummary from "@/components/pre-run-summary"
 import RunPage from "@/components/run-page"
+import { useSocket } from "@/lib/useSocket"
 
 const UVIcon = () => (
   <svg viewBox="0 0 100 100" className="w-20 h-20 text-white">
@@ -53,6 +54,13 @@ export default function PCRDashboard() {
   const [mounted, setMounted] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedProtocol, setSelectedProtocol] = useState("")
+  const { controlDevice, isConnected } = useSocket()
+  const [deviceStates, setDeviceStates] = useState({
+    uvLight: false,
+    systemLight: false,
+    hepaFilter: false
+  })
+  const [controlLoading, setControlLoading] = useState<string | null>(null)
 
   const { currentPage, setCurrentPage, setProtocolType, setSampleType } = useRunStore()
 
@@ -105,6 +113,63 @@ export default function PCRDashboard() {
       day: "numeric",
       month: "long",
     })
+  }
+
+  const handleUVLightToggle = async () => {
+    if (!isConnected) {
+      console.error('Not connected to server')
+      return
+    }
+
+    setControlLoading('uv')
+    try {
+      const newState = !deviceStates.uvLight
+      await controlDevice('UV', 1, newState ? 1 : 0)
+      setDeviceStates(prev => ({ ...prev, uvLight: newState }))
+      console.log(`UV Light turned ${newState ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Failed to control UV light:', error)
+    } finally {
+      setControlLoading(null)
+    }
+  }
+
+  const handleSystemLightToggle = async () => {
+    if (!isConnected) {
+      console.error('Not connected to server')
+      return
+    }
+
+    setControlLoading('system')
+    try {
+      const newState = !deviceStates.systemLight
+      await controlDevice('L', 1, newState ? 1 : 0)
+      setDeviceStates(prev => ({ ...prev, systemLight: newState }))
+      console.log(`System Light turned ${newState ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Failed to control system light:', error)
+    } finally {
+      setControlLoading(null)
+    }
+  }
+
+  const handleHEPAFilterToggle = async () => {
+    if (!isConnected) {
+      console.error('Not connected to server')
+      return
+    }
+
+    setControlLoading('hepa')
+    try {
+      const newState = !deviceStates.hepaFilter
+      await controlDevice('F', 1, newState ? 1 : 0)
+      setDeviceStates(prev => ({ ...prev, hepaFilter: newState }))
+      console.log(`HEPA Filter turned ${newState ? 'ON' : 'OFF'}`)
+    } catch (error) {
+      console.error('Failed to control HEPA filter:', error)
+    } finally {
+      setControlLoading(null)
+    }
   }
 
   const handleProtocolClick = (protocol: string) => {
@@ -269,33 +334,72 @@ export default function PCRDashboard() {
         <h2 className="text-[36px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">Control Panel</h2>
       </div>
 
-      <div className="absolute left-[84px] top-[1326px] w-[446px] h-[174px] bg-[var(--pcr-card)] rounded-[20px] cursor-pointer active:bg-[var(--pcr-card-dark)] transition-colors">
+      {/* UV Light Button */}
+      <div 
+        className={`absolute left-[84px] top-[1326px] w-[446px] h-[174px] rounded-[20px] cursor-pointer transition-colors ${
+          deviceStates.uvLight 
+            ? 'bg-[var(--pcr-accent)] hover:bg-blue-700' 
+            : 'bg-[var(--pcr-card)] hover:bg-[var(--pcr-card-dark)]'
+        } ${controlLoading === 'uv' ? 'opacity-50 cursor-not-allowed' : ''}`}
+        onClick={handleUVLightToggle}
+      >
         <div className="relative h-full">
-          <span className="absolute top-6 left-6 text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">
-            UV light
+          <span className="absolute top-6 left-6 text-[32px] leading-[40px] font-normal text-white">
+            UV light {deviceStates.uvLight ? '(ON)' : '(OFF)'}
           </span>
+          {controlLoading === 'uv' && (
+            <span className="absolute top-16 left-6 text-sm text-white">Controlling...</span>
+          )}
           <div className="absolute bottom-6 right-6">
             <UVIcon />
           </div>
         </div>
       </div>
 
-      <div className="absolute left-[84px] top-[1534px] w-[446px] h-[174px] bg-[var(--pcr-card)] rounded-[20px] cursor-pointer active:opacity-90 transition-opacity">
+      {/* System Light Button */}
+      <div 
+        className={`absolute left-[84px] top-[1534px] w-[446px] h-[174px] rounded-[20px] cursor-pointer transition-colors ${
+          deviceStates.systemLight 
+            ? 'bg-yellow-600 hover:bg-yellow-700' 
+            : 'bg-[var(--pcr-card)] hover:opacity-90'
+        } ${controlLoading === 'system' ? 'opacity-50 cursor-not-allowed' : ''}`}
+        onClick={handleSystemLightToggle}
+      >
         <div className="relative h-full">
-          <span className="absolute top-6 left-6 text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">
-            System light
+          <span className={`absolute top-6 left-6 text-[32px] leading-[40px] font-normal ${
+            deviceStates.systemLight ? 'text-white' : 'text-[var(--pcr-text-primary)]'
+          }`}>
+            System light {deviceStates.systemLight ? '(ON)' : '(OFF)'}
           </span>
+          {controlLoading === 'system' && (
+            <span className="absolute top-16 left-6 text-sm text-white">Controlling...</span>
+          )}
           <div className="absolute bottom-6 right-6">
-            <Lightbulb className="w-20 h-20 text-[var(--pcr-text-primary)]" />
+            <Lightbulb className={`w-20 h-20 ${
+              deviceStates.systemLight ? 'text-white' : 'text-[var(--pcr-text-primary)]'
+            }`} />
           </div>
         </div>
       </div>
 
-      <div className="absolute left-[553px] top-[1326px] w-[443px] h-[382px] bg-[var(--pcr-card)] rounded-[20px] cursor-pointer active:bg-[var(--pcr-card-dark)] transition-colors">
+      {/* HEPA Filter Button */}
+      <div 
+        className={`absolute left-[553px] top-[1326px] w-[443px] h-[382px] rounded-[20px] cursor-pointer transition-colors ${
+          deviceStates.hepaFilter 
+            ? 'bg-green-600 hover:bg-green-700' 
+            : 'bg-[var(--pcr-card)] hover:bg-[var(--pcr-card-dark)]'
+        } ${controlLoading === 'hepa' ? 'opacity-50 cursor-not-allowed' : ''}`}
+        onClick={handleHEPAFilterToggle}
+      >
         <div className="relative h-full">
-          <span className="absolute top-6 left-6 text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)]">
-            HEPA filter
+          <span className={`absolute top-6 left-6 text-[32px] leading-[40px] font-normal ${
+            deviceStates.hepaFilter ? 'text-white' : 'text-[var(--pcr-text-primary)]'
+          }`}>
+            HEPA filter {deviceStates.hepaFilter ? '(ON)' : '(OFF)'}
           </span>
+          {controlLoading === 'hepa' && (
+            <span className="absolute top-16 left-6 text-sm text-white">Controlling...</span>
+          )}
           <div className="absolute bottom-6 right-6">
             <HEPAIcon />
           </div>

@@ -9,6 +9,8 @@ interface UseSocketReturn {
   stopPCRRun: (runId: string) => void
   getSystemStatus: () => void
   scanBarcode: (scanData?: any) => Promise<any>  // New barcode scanner function
+  controlDevice: (device: string, number: number, state: number) => Promise<any>
+
 }
 
 export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocketReturn {
@@ -90,6 +92,14 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     socket.on('scan_error', (data) => {
       console.error('Barcode scan error:', data)
       // Handle scan errors
+    })
+
+    socket.on('control_complete', (data) => {
+      console.log('Device control completed:', data)
+    })
+
+    socket.on('control_error', (data) => {
+      console.error('Device control error:', data)
     })
 
     // Cleanup on unmount
@@ -176,6 +186,52 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     })
   }
 
+  const controlDevice = (device: string, number: number, state: number): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const controlId = `control_${Date.now()}`
+      
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Device control timeout'))
+      }, 10000)
+
+      // Listen for completion for this specific control
+      const handleComplete = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('control_complete', handleComplete)
+          socketRef.current?.off('control_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('control_complete', handleComplete)
+          socketRef.current?.off('control_error', handleError)
+          reject(new Error(data.error || 'Device control failed'))
+        }
+      }
+
+      socketRef.current.on('control_complete', handleComplete)
+      socketRef.current.on('control_error', handleError)
+
+      const controlData = {
+        device,
+        number,
+        state,
+        control_id: controlId
+      }
+
+      socketRef.current.emit('device_control', controlData)
+    })
+  }
+
   // Function to stop PCR run
   const stopPCRRun = (runId: string) => {
     if (socketRef.current && isConnected) {
@@ -197,5 +253,6 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     stopPCRRun,
     getSystemStatus,
     scanBarcode,  // Export the new barcode scanner function
+    controlDevice, // Export the device control function
   }
 }
