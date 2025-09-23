@@ -54,7 +54,7 @@ export default function PCRDashboard() {
   const [mounted, setMounted] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedProtocol, setSelectedProtocol] = useState("")
-  const { controlDevice, isConnected } = useSocket()
+  const { controlUVLight, controlSystemLight, controlHEPAFilter, isConnected } = useSocket()
   const [deviceStates, setDeviceStates] = useState({
     uvLight: false,
     systemLight: false,
@@ -115,6 +115,18 @@ export default function PCRDashboard() {
     })
   }
 
+  const getGreeting = (date: Date) => {
+    const hour = date.getHours()
+    
+    if (hour >= 5 && hour < 12) {
+      return "Good morning"
+    } else if (hour >= 12 && hour < 17) {
+      return "Good afternoon"
+    } else {
+      return "Good evening"
+    }
+  }
+
   const handleUVLightToggle = async () => {
     if (!isConnected) {
       console.error('Not connected to server')
@@ -124,7 +136,7 @@ export default function PCRDashboard() {
     setControlLoading('uv')
     try {
       const newState = !deviceStates.uvLight
-      await controlDevice('UV', 1, newState ? 1 : 0)
+      await controlUVLight(newState)
       setDeviceStates(prev => ({ ...prev, uvLight: newState }))
       console.log(`UV Light turned ${newState ? 'ON' : 'OFF'}`)
     } catch (error) {
@@ -143,7 +155,7 @@ export default function PCRDashboard() {
     setControlLoading('system')
     try {
       const newState = !deviceStates.systemLight
-      await controlDevice('L', 1, newState ? 1 : 0)
+      await controlSystemLight(newState)
       setDeviceStates(prev => ({ ...prev, systemLight: newState }))
       console.log(`System Light turned ${newState ? 'ON' : 'OFF'}`)
     } catch (error) {
@@ -162,7 +174,7 @@ export default function PCRDashboard() {
     setControlLoading('hepa')
     try {
       const newState = !deviceStates.hepaFilter
-      await controlDevice('F', 1, newState ? 1 : 0)
+      await controlHEPAFilter(newState)
       setDeviceStates(prev => ({ ...prev, hepaFilter: newState }))
       console.log(`HEPA Filter turned ${newState ? 'ON' : 'OFF'}`)
     } catch (error) {
@@ -256,8 +268,8 @@ export default function PCRDashboard() {
         </Button>
       </div>
 
-      <div className="absolute left-[84px] top-[115px] w-[389px] h-[65px]">
-        <h1 className="text-[52px] leading-[54px] font-normal text-[var(--pcr-text-primary)]">Good morning</h1>
+      <div className="absolute left-[84px] top-[115px] w-[500px] h-[65px]">
+        <h1 className="text-[52px] leading-[54px] font-normal text-[var(--pcr-text-primary)]">{getGreeting(currentTime)}</h1>
       </div>
 
       <div className="absolute left-[84px] top-[192px] w-[420px] h-[91px]">

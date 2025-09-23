@@ -1,28 +1,48 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRunStore } from "../lib/store"
 import { Check, Pause, AlertTriangle } from "lucide-react"
 
 export default function RunPage() {
     const { runData, setCurrentPage } = useRunStore()
     const { runId } = runData
-    const [totalTimeSeconds, setTotalTimeSeconds] = useState(30) // 30 seconds for demo
-    const [timeRemaining, setTimeRemaining] = useState("00:30")
+    
+    // SINGLE TIME VARIABLE - CHANGE THIS TO SET TOTAL DURATION
+    const samplecount = parseInt(runData?.numberOfSamples ?? "0", 10);
+
+    // Constants
+    const CONSTANT_OVERHEAD = 28.5 * 60; // 1710 seconds
+    const BASE_SAMPLES = 32;
+    const TOTAL_TIME_FOR_BASE = 85 * 60; // 5100 seconds
+
+    // Calculate per-sample time (excluding overhead)
+    const perSampleTime = (TOTAL_TIME_FOR_BASE - CONSTANT_OVERHEAD) / BASE_SAMPLES;
+
+    // Final total time for given sample count
+    const TOTAL_TIME_SECONDS = Math.round(CONSTANT_OVERHEAD + perSampleTime * samplecount);
+    
+    const [totalTimeSeconds, setTotalTimeSeconds] = useState(TOTAL_TIME_SECONDS)
+    const [timeRemaining, setTimeRemaining] = useState("")
     const [currentStepIndex, setCurrentStepIndex] = useState(0)
     const [stepProgress, setStepProgress] = useState(0)
     const [overallProgress, setOverallProgress] = useState(0)
     const [isPaused, setIsPaused] = useState(false)
     const [showAbortModal, setShowAbortModal] = useState(false)
 
-    // Protocol steps with their durations (each 6 seconds for 30 total)
-    const protocolSteps = [
-        { name: "Lysis", duration: "6s", timeSeconds: 6 },
-        { name: "Binding", duration: "6s", timeSeconds: 6 },
-        { name: "Wash 1", duration: "6s", timeSeconds: 6 },
-        { name: "Wash 2", duration: "6s", timeSeconds: 6 },
-        { name: "Wash 3", duration: "6s", timeSeconds: 6 },
-    ]
+    // DYNAMIC protocol steps - everything calculated from TOTAL_TIME_SECONDS
+    const protocolSteps = useMemo(() => {
+        const stepNames = ["Lysis", "Binding", "Wash 1", "Wash 2", "Wash 3"]
+        const timePerStep = TOTAL_TIME_SECONDS / stepNames.length
+        
+        return stepNames.map(name => ({
+            name,
+            timeSeconds: timePerStep,
+            duration: timePerStep >= 60 
+                ? `${Math.floor(timePerStep / 60)}m ${Math.round(timePerStep % 60)}s`
+                : `${Math.round(timePerStep)}s`
+        }))
+    }, [TOTAL_TIME_SECONDS])
 
     // System status items
     const systemStatus = [
@@ -33,10 +53,17 @@ export default function RunPage() {
     ]
 
     useEffect(() => {
-        if (isPaused) return
+        // Initialize time display on mount
+        const minutes = Math.floor(TOTAL_TIME_SECONDS / 60)
+        const seconds = TOTAL_TIME_SECONDS % 60
+        setTimeRemaining(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
+    }, [TOTAL_TIME_SECONDS])
 
+    useEffect(() => {
+        if (isPaused) return
         const timer = setInterval(() => {
             setTotalTimeSeconds(prev => {
+                
                 if (prev <= 0) {
                     clearInterval(timer)
                     // Run complete - could navigate to completion page
@@ -51,34 +78,34 @@ export default function RunPage() {
                 setTimeRemaining(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
                 
                 // Calculate overall progress
-                const totalProgress = ((30 - newTime) / 30) * 100
+                const totalProgress = ((TOTAL_TIME_SECONDS - newTime) / TOTAL_TIME_SECONDS) * 100
                 setOverallProgress(Math.round(totalProgress))
                 
-                // Calculate which step we're in
-                const elapsedTime = 30 - newTime
-                let currentStep = 0
-                let stepElapsed = 0
+                // Calculate which step we're in DYNAMICALLY
+                const elapsedTime = TOTAL_TIME_SECONDS - newTime
+                const timePerStep = TOTAL_TIME_SECONDS / protocolSteps.length
                 
-                for (let i = 0; i < protocolSteps.length; i++) {
-                    if (elapsedTime <= (i + 1) * 6) {
-                        currentStep = i
-                        stepElapsed = elapsedTime - (i * 6)
-                        break
-                    }
-                }
+                let currentStep = Math.floor(elapsedTime / timePerStep)
+                currentStep = Math.min(currentStep, protocolSteps.length - 1) // Don't exceed array bounds
+                
+                const stepElapsed = elapsedTime - (currentStep * timePerStep)
                 
                 setCurrentStepIndex(currentStep)
-                const stepProgressPercent = Math.round((stepElapsed / protocolSteps[currentStep].timeSeconds) * 100)
+                const stepProgressPercent = Math.round((stepElapsed / timePerStep) * 100)
                 setStepProgress(Math.min(stepProgressPercent, 100))
                 
                 return newTime
             })
         }, 1000)
 
-        return () => clearInterval(timer)
-    }, [isPaused, protocolSteps])
+        return () => {
+            console.log('Cleaning up timer') // Debug log
+            clearInterval(timer)
+        }
+    }, [isPaused, protocolSteps, TOTAL_TIME_SECONDS]) // Added TOTAL_TIME_SECONDS to deps
 
     const handlePauseRun = () => {
+        console.log('Toggling pause, current state:', isPaused) // Debug log
         setIsPaused(!isPaused)
     }
 
@@ -171,8 +198,9 @@ export default function RunPage() {
                             const isCurrent = index === currentStepIndex
                             const isPending = index > currentStepIndex
                             
-                            // Calculate total progress through the entire pipeline
+                            // Calculate total progress through the entire pipeline DYNAMICALLY
                             const totalSteps = protocolSteps.length
+                            const timePerStep = TOTAL_TIME_SECONDS / totalSteps
                             const currentProgress = currentStepIndex + (stepProgress / 100)
                             const stepPosition = index
                             
@@ -274,6 +302,11 @@ export default function RunPage() {
 
             {/* Control Buttons */}
             <div className="absolute w-[670.89px] h-[97.24px] left-[325px] top-[1707px]">
+                
+                {/* Debug info - remove this after testing */}
+                <div className="absolute top-[-50px] left-0 text-sm text-gray-500">
+                    Debug: isPaused={isPaused ? 'true' : 'false'}, totalTime={totalTimeSeconds}, TOTAL_TIME={TOTAL_TIME_SECONDS}
+                </div>
                 
                 {/* Pause/Resume button */}
                 <button 

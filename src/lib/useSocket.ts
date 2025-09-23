@@ -8,14 +8,24 @@ interface UseSocketReturn {
   startPCRRun: (runData: any) => Promise<string>
   stopPCRRun: (runId: string) => void
   getSystemStatus: () => void
-  scanBarcode: (scanData?: any) => Promise<any>  // New barcode scanner function
+  scanBarcode: (scanData?: any, onProgress?: (progress: any) => void) => Promise<any>
   controlDevice: (device: string, number: number, state: number) => Promise<any>
-
+  controlUVLight: (state: boolean) => Promise<any>
+  controlSystemLight: (state: boolean) => Promise<any>
+  controlHEPAFilter: (state: boolean) => Promise<any>
 }
 
 export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  
+  // Keep track of active scan promises
+  const scanPromiseRef = useRef<{
+    resolve: (value: any) => void
+    reject: (reason?: any) => void
+    timeout: NodeJS.Timeout
+    scanId?: string
+  } | null>(null)
 
   useEffect(() => {
     // Initialize socket connection
@@ -82,16 +92,38 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     // Barcode scanner event listeners
     socket.on('scan_started', (data) => {
       console.log('Barcode scan started:', data)
+      // Store the scan ID for matching with completion
+      if (scanPromiseRef.current && data.scan_id) {
+        scanPromiseRef.current.scanId = data.scan_id
+      }
+    })
+
+    socket.on('scan_progress', (data) => {
+      console.log('Barcode scan progress:', data)
+      // You can emit this to your React components or handle it here
+      // For example, you could store progress in state or call a callback
     })
 
     socket.on('scan_complete', (data) => {
       console.log('Barcode scan completed:', data)
-      // Handle scan completion with result data
+      
+      // Check if we have an active scan promise waiting
+      if (scanPromiseRef.current) {
+        clearTimeout(scanPromiseRef.current.timeout)
+        scanPromiseRef.current.resolve(data)
+        scanPromiseRef.current = null
+      }
     })
 
     socket.on('scan_error', (data) => {
       console.error('Barcode scan error:', data)
-      // Handle scan errors
+      
+      // Check if we have an active scan promise waiting
+      if (scanPromiseRef.current) {
+        clearTimeout(scanPromiseRef.current.timeout)
+        scanPromiseRef.current.reject(new Error(data.error || 'Barcode scan failed'))
+        scanPromiseRef.current = null
+      }
     })
 
     socket.on('control_complete', (data) => {
@@ -104,6 +136,12 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
 
     // Cleanup on unmount
     return () => {
+      // Clean up any pending scan promise
+      if (scanPromiseRef.current) {
+        clearTimeout(scanPromiseRef.current.timeout)
+        scanPromiseRef.current.reject(new Error('Component unmounted'))
+        scanPromiseRef.current = null
+      }
       socket.disconnect()
     }
   }, [serverUrl])
@@ -147,42 +185,168 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     })
   }
 
-  // Function to scan barcode
-  const scanBarcode = async (scanData: any = {}): Promise<any> => {
+  // Function to scan barcode - Fixed to use event-based approach
+  const scanBarcode = async (scanData: any = {}, onProgress?: (progress: any) => void): Promise<any> => {
     return new Promise((resolve, reject) => {
       if (!socketRef.current || !isConnected) {
         reject(new Error('Socket not connected'))
         return
       }
 
-      console.log('Emitting scan_barcode event with data:', scanData)
+      if (scanPromiseRef.current) {
+        reject(new Error('Scan already in progress'))
+        return
+      }
 
-      // Set a timeout in case the server doesn't respond
+      // Set up progress handler if provided
+      if (onProgress) {
+        const progressHandler = (data: any) => {
+          if (scanPromiseRef.current && data.scan_id === scanPromiseRef.current.scanId) {
+            onProgress(data)
+          }
+        }
+        socketRef.current.on('scan_progress', progressHandler)
+        
+        // Clean up progress listener when done
+        const originalResolve = resolve
+        const originalReject = reject
+        
+        resolve = (value) => {
+          socketRef.current?.off('scan_progress', progressHandler)
+          originalResolve(value)
+        }
+        
+        reject = (reason) => {
+          socketRef.current?.off('scan_progress', progressHandler)
+          originalReject(reason)
+        }
+      }
+
+      // Rest of your existing scanBarcode logic...
       const timeout = setTimeout(() => {
-        reject(new Error('Barcode scan timeout'))
-      }, 30000) // 30 second timeout
+        if (scanPromiseRef.current) {
+          scanPromiseRef.current = null
+          reject(new Error('Barcode scan timeout'))
+        }
+      }, 600000) // Increase to 10 minutes
+
+      scanPromiseRef.current = { resolve, reject, timeout }
 
       try {
-        // Send scan_barcode event with scanData and callback
-        socketRef.current.emit('scan_barcode', scanData, (response: any) => {
-          clearTimeout(timeout)
-          
-          console.log('Received barcode scan response from server:', response)
-          
-          if (response && response.success) {
-            console.log('Barcode scan completed successfully:', response.data)
-            resolve(response.data) // Return the JSON data from barcode scanner
-          } else {
-            const errorMsg = response?.error || 'Unknown error occurred during barcode scan'
-            console.error('Failed to scan barcode:', errorMsg)
-            reject(new Error(errorMsg))
-          }
-        })
+        socketRef.current.emit('scan_barcode', scanData)
       } catch (error) {
         clearTimeout(timeout)
-        console.error('Error emitting scan_barcode:', error)
+        scanPromiseRef.current = null
         reject(error)
       }
+    })
+  }
+
+  const controlUVLight = (state: boolean): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const controlId = `uv_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('UV control timeout')), 10000)
+
+      const handleComplete = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('uv_complete', handleComplete)
+          socketRef.current?.off('uv_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('uv_complete', handleComplete)
+          socketRef.current?.off('uv_error', handleError)
+          reject(new Error(data.error || 'UV control failed'))
+        }
+      }
+
+      socketRef.current.on('uv_complete', handleComplete)
+      socketRef.current.on('uv_error', handleError)
+
+      const eventName = state ? 'turn_on_uv_hardware' : 'turn_off_uv_hardware'
+      socketRef.current.emit(eventName, { control_id: controlId })
+    })
+  }
+
+  const controlSystemLight = (state: boolean): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const controlId = `light_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('Light control timeout')), 10000)
+
+      const handleComplete = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('light_complete', handleComplete)
+          socketRef.current?.off('light_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('light_complete', handleComplete)
+          socketRef.current?.off('light_error', handleError)
+          reject(new Error(data.error || 'Light control failed'))
+        }
+      }
+
+      socketRef.current.on('light_complete', handleComplete)
+      socketRef.current.on('light_error', handleError)
+
+      const eventName = state ? 'turn_on_light_hardware' : 'turn_off_light_hardware'
+      socketRef.current.emit(eventName, { control_id: controlId })
+    })
+  }
+
+  const controlHEPAFilter = (state: boolean): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const controlId = `fan_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('Fan control timeout')), 10000)
+
+      const handleComplete = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('fan_complete', handleComplete)
+          socketRef.current?.off('fan_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('fan_complete', handleComplete)
+          socketRef.current?.off('fan_error', handleError)
+          reject(new Error(data.error || 'Fan control failed'))
+        }
+      }
+
+      socketRef.current.on('fan_complete', handleComplete)
+      socketRef.current.on('fan_error', handleError)
+
+      const eventName = state ? 'turn_on_fan_hardware' : 'turn_off_fan_hardware'
+      socketRef.current.emit(eventName, { control_id: controlId })
     })
   }
 
@@ -254,5 +418,8 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     getSystemStatus,
     scanBarcode,  // Export the new barcode scanner function
     controlDevice, // Export the device control function
+    controlUVLight,
+    controlSystemLight,
+    controlHEPAFilter
   }
 }

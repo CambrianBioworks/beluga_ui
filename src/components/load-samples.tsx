@@ -13,6 +13,17 @@ export default function LoadSamples() {
     const { scanBarcode, isConnected } = useSocket()
     const [scannedSamples, setScannedSamples] = useState<{ id: number, barcode: string, scanned: boolean }[]>([])
     const [imageLoaded, setImageLoaded] = useState<boolean>(false)
+    const [scanProgress, setScanProgress] = useState<{
+        currentSlot: number | null;
+        scannedCount: number;
+        totalSlots: number;
+        lastScannedSlot: number | null;
+        }>({
+        currentSlot: null,
+        scannedCount: 0,
+        totalSlots: 16,
+        lastScannedSlot: null
+        })
 
     const isCfDNA = runData.sampleType && runData.sampleType.toLowerCase() === 'cfdna'
     const numberOfSamples = parseInt(runData.numberOfSamples) || 0
@@ -84,33 +95,66 @@ export default function LoadSamples() {
         }
     }
 
-    const handleScanBarcode = async () => {
-        if (!isConnected) {
-            console.error("Not connected to server")
-            return
-        }
+ const handleScanBarcode = async () => {
+    if (!isConnected) {
+        console.error("Not connected to server")
+        return
+    }
 
-        setIsScanning(true)
+    setIsScanning(true)
+    setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
+    setScannedSamples([]) // Clear previous results
 
-        try {
-            const result = await scanBarcode()
-            console.log("Barcode scan result:", result)
-
-            // Convert the result object to scanned samples format
-            const newSamples = Object.entries(result).map(([id, barcode]) => ({
-                id: parseInt(id),
-                barcode: barcode as string,
-                scanned: true
+    try {
+        const result = await scanBarcode({}, (progress) => {
+        console.log("Scan progress:", progress)
+        
+        if (progress.type === 'slot_ready') {
+            setScanProgress(prev => ({
+            ...prev,
+            currentSlot: progress.slot
             }))
-
-            setScannedSamples(newSamples)
-
-        } catch (error) {
-            console.error("Barcode scan failed:", error)
-            // Optionally show error to user
-        } finally {
-            setIsScanning(false)
+        } else if (progress.type === 'slot_scanned') {
+            setScanProgress(prev => ({
+            ...prev,
+            currentSlot: null,
+            scannedCount: progress.progress,
+            lastScannedSlot: progress.slot
+            }))
+            
+            // Update scanned samples in real-time
+            setScannedSamples(prev => {
+            const updated = [...prev]
+            const existingIndex = updated.findIndex(s => s.id === progress.slot)
+            
+            if (existingIndex >= 0) {
+                updated[existingIndex] = {
+                id: progress.slot,
+                barcode: progress.barcode,
+                scanned: true
+                }
+            } else {
+                updated.push({
+                id: progress.slot,
+                barcode: progress.barcode,
+                scanned: true
+                })
+            }
+            
+            // Sort by slot ID
+            return updated.sort((a, b) => a.id - b.id)
+            })
         }
+        })
+
+        console.log("Final barcode scan result:", result)
+
+    } catch (error) {
+        console.error("Barcode scan failed:", error)
+    } finally {
+        setIsScanning(false)
+        setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
+    }
     }
 
     const handleKeyPress = (e: { key: string }) => {
@@ -384,7 +428,7 @@ export default function LoadSamples() {
                         showBack={true}
                         showNext={true}
                         backDisabled={false}
-                        nextDisabled={scannedSamples.length === 0}
+                        nextDisabled={false}
                         onBack={() => setCurrentPage("load-reagents-deck")}
                         onNext={() => setCurrentPage("tip-box")}
                     />
@@ -643,7 +687,7 @@ export default function LoadSamples() {
                     showBack={true}
                     showNext={true}
                     backDisabled={false}
-                    nextDisabled={scannedSamples.length === 0}
+                    nextDisabled={false}
                     onBack={() => setCurrentPage("load-reagents-deck")}
                     onNext={() => setCurrentPage("tip-box")}
                 />
