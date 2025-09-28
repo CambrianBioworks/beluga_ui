@@ -15,6 +15,7 @@ import TipBox from "@/components/tip-box"
 import ElutionWellSelection from "@/components/elution-well-selection"
 import PreRunSummary from "@/components/pre-run-summary"
 import RunPage from "@/components/run-page"
+import WiFiModal from "@/components/wifi-modal"
 import { useSocket } from "@/lib/useSocket"
 
 const UVIcon = () => (
@@ -54,11 +55,17 @@ export default function PCRDashboard() {
   const [mounted, setMounted] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedProtocol, setSelectedProtocol] = useState("")
-  const { controlUVLight, controlSystemLight, controlHEPAFilter, isConnected } = useSocket()
+  const { controlUVLight, controlSystemLight, controlHEPAFilter, getWiFiStatus, scanWiFiNetworks, connectToWiFi, disconnectWiFi, isConnected } = useSocket()
+  const [showWiFiModal, setShowWiFiModal] = useState(false)
   const [deviceStates, setDeviceStates] = useState({
     uvLight: false,
     systemLight: false,
     hepaFilter: false
+  })
+  const [wifiStatus, setWifiStatus] = useState({
+    connected: false,
+    ssid: null,
+    signal_strength: null
   })
   const [controlLoading, setControlLoading] = useState<string | null>(null)
 
@@ -124,6 +131,25 @@ export default function PCRDashboard() {
       return "Good afternoon"
     } else {
       return "Good evening"
+    }
+  }
+
+  const handleWiFiClick = async () => {
+    try {
+      const status = await getWiFiStatus()
+      setWifiStatus(status)
+      
+      if (status.connected) {
+        // Show disconnect option or WiFi details
+        console.log(`Connected to: ${status.ssid}`)
+      } else {
+        // Show available networks
+        const networks = await scanWiFiNetworks()
+        console.log('Available networks:', networks)
+        // Open WiFi selection modal
+      }
+    } catch (error) {
+      console.error('WiFi operation failed:', error)
     }
   }
 
@@ -245,7 +271,7 @@ export default function PCRDashboard() {
         <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300">
           <Settings className="size-12" />
         </Button>
-        <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300">
+        <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300"   onClick={() => setShowWiFiModal(true)}>
           <Wifi className="size-12" />
         </Button>
         <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300">
@@ -464,6 +490,12 @@ export default function PCRDashboard() {
             ))}
           </div>
         </div>
+      )}
+      {showWiFiModal && (
+        <WiFiModal 
+          isOpen={showWiFiModal} 
+          onClose={() => setShowWiFiModal(false)} 
+        />
       )}
     </div>
   )

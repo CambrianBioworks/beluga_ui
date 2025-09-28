@@ -18,12 +18,12 @@ export default function LoadSamples() {
         scannedCount: number;
         totalSlots: number;
         lastScannedSlot: number | null;
-        }>({
+    }>({
         currentSlot: null,
         scannedCount: 0,
         totalSlots: 16,
         lastScannedSlot: null
-        })
+    })
 
     const isCfDNA = runData.sampleType && runData.sampleType.toLowerCase() === 'cfdna'
     const numberOfSamples = parseInt(runData.numberOfSamples) || 0
@@ -95,66 +95,66 @@ export default function LoadSamples() {
         }
     }
 
- const handleScanBarcode = async () => {
-    if (!isConnected) {
-        console.error("Not connected to server")
-        return
-    }
-
-    setIsScanning(true)
-    setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
-    setScannedSamples([]) // Clear previous results
-
-    try {
-        const result = await scanBarcode({}, (progress) => {
-        console.log("Scan progress:", progress)
-        
-        if (progress.type === 'slot_ready') {
-            setScanProgress(prev => ({
-            ...prev,
-            currentSlot: progress.slot
-            }))
-        } else if (progress.type === 'slot_scanned') {
-            setScanProgress(prev => ({
-            ...prev,
-            currentSlot: null,
-            scannedCount: progress.progress,
-            lastScannedSlot: progress.slot
-            }))
-            
-            // Update scanned samples in real-time
-            setScannedSamples(prev => {
-            const updated = [...prev]
-            const existingIndex = updated.findIndex(s => s.id === progress.slot)
-            
-            if (existingIndex >= 0) {
-                updated[existingIndex] = {
-                id: progress.slot,
-                barcode: progress.barcode,
-                scanned: true
-                }
-            } else {
-                updated.push({
-                id: progress.slot,
-                barcode: progress.barcode,
-                scanned: true
-                })
-            }
-            
-            // Sort by slot ID
-            return updated.sort((a, b) => a.id - b.id)
-            })
+    const handleScanBarcode = async () => {
+        if (!isConnected) {
+            console.error("Not connected to server")
+            return
         }
-        })
 
-        console.log("Final barcode scan result:", result)
-
-    } catch (error) {
-        console.error("Barcode scan failed:", error)
-    } finally {
-        setIsScanning(false)
+        setIsScanning(true)
         setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
-    }
+        setScannedSamples([]) // Clear previous results
+
+        try {
+            const result = await scanBarcode({}, (progress) => {
+                if (progress.type === 'slot_ready') {
+                    console.log("Slot ready:", progress.slot)
+                    setScanProgress(prev => ({
+                        ...prev,
+                        currentSlot: progress.slot
+                    }))
+                } else if (progress.type === 'slot_scanned') {
+                    setScanProgress(prev => ({
+                        ...prev,
+                        currentSlot: null,
+                        scannedCount: progress.progress,
+                        lastScannedSlot: progress.slot
+                    }))
+
+                    // Update scanned samples in real-time
+                    setScannedSamples(prev => {
+                        const updated = [...prev]
+                        const existingIndex = updated.findIndex(s => s.id === progress.slot)
+
+                        if (existingIndex >= 0) {
+                            updated[existingIndex] = {
+                                id: progress.slot,
+                                barcode: progress.barcode,
+                                scanned: true
+                            }
+                        } else {
+                            updated.push({
+                                id: progress.slot,
+                                barcode: progress.barcode,
+                                scanned: true
+                            })
+                        }
+
+                        return updated.sort((a, b) => a.id - b.id)
+                    })
+                } else {
+                    console.log("Unknown progress type:", progress.type)
+                }
+            })
+
+            console.log("Final barcode scan result:", result)
+
+        } catch (error) {
+            console.error("Barcode scan failed:", error)
+        } finally {
+            setIsScanning(false)
+            setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
+        }
     }
 
     const handleKeyPress = (e: { key: string }) => {
@@ -630,18 +630,20 @@ export default function LoadSamples() {
                 </h3>
 
                 <div className="absolute w-[669.61px] h-[493.61px] left-0 top-[92px] bg-[var(--pcr-card)] rounded-[20px] overflow-y-auto">
-                    {scannedSamples.length === 0 && !isScanning ? (
+                    {scannedSamples.length === 0 ? (
                         <div className="flex items-center justify-center h-full">
-                            <span className="text-[#B3B3B3] text-[24px] font-light" style={{ fontFamily: "Space Grotesk" }}>
-                                No samples scanned yet
-                            </span>
-                        </div>
-                    ) : isScanning ? (
-                        <div className="flex flex-col items-center justify-center h-full gap-4">
-                            <Loader2 className="w-16 h-16 text-[var(--pcr-accent)] animate-spin" />
-                            <span className="text-[var(--pcr-text-primary)] text-[24px] font-light" style={{ fontFamily: "Space Grotesk" }}>
-                                Scanning barcodes...
-                            </span>
+                            {isScanning ? (
+                                <div className="flex flex-col items-center gap-4">
+                                    <Loader2 className="w-16 h-16 text-[var(--pcr-accent)] animate-spin" />
+                                    <span className="text-[var(--pcr-text-primary)] text-[24px] font-light" style={{ fontFamily: "Space Grotesk" }}>
+                                        Scanning barcodes...
+                                    </span>
+                                </div>
+                            ) : (
+                                <span className="text-[#B3B3B3] text-[24px] font-light" style={{ fontFamily: "Space Grotesk" }}>
+                                    No samples scanned yet
+                                </span>
+                            )}
                         </div>
                     ) : (
                         <div className="space-y-4">

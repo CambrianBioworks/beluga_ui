@@ -13,6 +13,11 @@ interface UseSocketReturn {
   controlUVLight: (state: boolean) => Promise<any>
   controlSystemLight: (state: boolean) => Promise<any>
   controlHEPAFilter: (state: boolean) => Promise<any>
+  getWiFiStatus: () => Promise<any>
+  scanWiFiNetworks: () => Promise<any>
+  connectToWiFi: (ssid: string, password: string) => Promise<any>
+  disconnectWiFi: () => Promise<any>
+  getKnownNetworks: () => Promise<any>
 }
 
 export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocketReturn {
@@ -134,6 +139,22 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
       console.error('Device control error:', data)
     })
 
+    socket.on('wifi_status', (data) => {
+      console.log('WiFi status:', data)
+    })
+
+    socket.on('wifi_networks', (data) => {
+      console.log('WiFi networks found:', data)
+    })
+
+    socket.on('wifi_connected', (data) => {
+      console.log('WiFi connected:', data)
+    })
+
+    socket.on('wifi_error', (data) => {
+      console.error('WiFi error:', data)
+    })
+
     // Cleanup on unmount
     return () => {
       // Clean up any pending scan promise
@@ -187,59 +208,44 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
 
   // Function to scan barcode - Fixed to use event-based approach
   const scanBarcode = async (scanData: any = {}, onProgress?: (progress: any) => void): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      if (!socketRef.current || !isConnected) {
-        reject(new Error('Socket not connected'))
-        return
-      }
-
-      if (scanPromiseRef.current) {
-        reject(new Error('Scan already in progress'))
-        return
-      }
-
-      // Set up progress handler if provided
-      if (onProgress) {
-        const progressHandler = (data: any) => {
-          if (scanPromiseRef.current && data.scan_id === scanPromiseRef.current.scanId) {
-            onProgress(data)
+      return new Promise((resolve, reject) => {
+          if (!socketRef.current || !isConnected) {
+              reject(new Error('Socket not connected'))
+              return
           }
-        }
-        socketRef.current.on('scan_progress', progressHandler)
-        
-        // Clean up progress listener when done
-        const originalResolve = resolve
-        const originalReject = reject
-        
-        resolve = (value) => {
-          socketRef.current?.off('scan_progress', progressHandler)
-          originalResolve(value)
-        }
-        
-        reject = (reason) => {
-          socketRef.current?.off('scan_progress', progressHandler)
-          originalReject(reason)
-        }
-      }
 
-      // Rest of your existing scanBarcode logic...
-      const timeout = setTimeout(() => {
-        if (scanPromiseRef.current) {
-          scanPromiseRef.current = null
-          reject(new Error('Barcode scan timeout'))
-        }
-      }, 600000) // Increase to 10 minutes
+          // Set up progress handler - this fires immediately for each scan
+          const progressHandler = (data: any) => {
+                  if (onProgress) {
+                      onProgress(data) // This allows real-time updates
+                  }
+              
+          }
+          
+          socketRef.current.on('scan_progress', progressHandler)
+          
+          const timeout = setTimeout(() => {
+              if (scanPromiseRef.current) {
+                  socketRef.current?.off('scan_progress', progressHandler)
+                  scanPromiseRef.current = null
+                  reject(new Error('Barcode scan timeout'))
+              }
+          }, 600000)
 
-      scanPromiseRef.current = { resolve, reject, timeout }
+          scanPromiseRef.current = { 
+              resolve: (value) => {
+                  socketRef.current?.off('scan_progress', progressHandler)
+                  resolve(value)
+              }, 
+              reject: (reason) => {
+                  socketRef.current?.off('scan_progress', progressHandler)
+                  reject(reason)
+              }, 
+              timeout 
+          }
 
-      try {
-        socketRef.current.emit('scan_barcode', scanData)
-      } catch (error) {
-        clearTimeout(timeout)
-        scanPromiseRef.current = null
-        reject(error)
-      }
-    })
+          socketRef.current.emit('scan_barcode', scanData)
+      })
   }
 
   const controlUVLight = (state: boolean): Promise<any> => {
@@ -410,6 +416,144 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     }
   }
 
+  // WiFi control functions
+  const getWiFiStatus = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const requestId = `wifi_status_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('WiFi status timeout')), 10000)
+
+      const handleStatus = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_status', handleStatus)
+          resolve(data)
+        }
+      }
+
+      socketRef.current.on('wifi_status', handleStatus)
+      socketRef.current.emit('get_wifi_status', { request_id: requestId })
+    })
+  }
+
+  const scanWiFiNetworks = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const requestId = `wifi_scan_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('WiFi scan timeout')), 30000)
+
+      const handleNetworks = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_networks', handleNetworks)
+          socketRef.current?.off('wifi_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_networks', handleNetworks)
+          socketRef.current?.off('wifi_error', handleError)
+          reject(new Error(data.error || 'WiFi scan failed'))
+        }
+      }
+
+      socketRef.current.on('wifi_networks', handleNetworks)
+      socketRef.current.on('wifi_error', handleError)
+      socketRef.current.emit('scan_wifi_networks', { request_id: requestId })
+    })
+  }
+
+  const connectToWiFi = (ssid: string, password: string): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const requestId = `wifi_connect_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('WiFi connect timeout')), 30000)
+
+      const handleConnected = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_connected', handleConnected)
+          socketRef.current?.off('wifi_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_connected', handleConnected)
+          socketRef.current?.off('wifi_error', handleError)
+          reject(new Error(data.error || 'WiFi connection failed'))
+        }
+      }
+
+      socketRef.current.on('wifi_connected', handleConnected)
+      socketRef.current.on('wifi_error', handleError)
+      socketRef.current.emit('connect_wifi', { request_id: requestId, ssid, password })
+    })
+  }
+
+  const disconnectWiFi = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const requestId = `wifi_disconnect_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('WiFi disconnect timeout')), 10000)
+
+      const handleStatus = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_status', handleStatus)
+          resolve(data)
+        }
+      }
+
+      socketRef.current.on('wifi_status', handleStatus)
+      socketRef.current.emit('disconnect_wifi', { request_id: requestId })
+    })
+  }
+
+  const getKnownNetworks = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const requestId = `wifi_known_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('Get known networks timeout')), 10000)
+
+      const handleNetworks = (data: any) => {
+        if (data.request_id === requestId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('wifi_networks', handleNetworks)
+          resolve(data)
+        }
+      }
+
+      socketRef.current.on('wifi_networks', handleNetworks)
+      socketRef.current.emit('get_known_networks', { request_id: requestId })
+    })
+  }
+
   return {
     socket: socketRef.current,
     isConnected,
@@ -420,6 +564,11 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     controlDevice, // Export the device control function
     controlUVLight,
     controlSystemLight,
-    controlHEPAFilter
+    controlHEPAFilter,
+    getWiFiStatus,
+    scanWiFiNetworks,
+    connectToWiFi,
+    disconnectWiFi,
+    getKnownNetworks
   }
 }
