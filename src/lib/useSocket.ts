@@ -5,10 +5,15 @@ import { io, Socket } from 'socket.io-client'
 interface UseSocketReturn {
   socket: Socket | null
   isConnected: boolean
+  initializeBeluga: () => Promise<any>
   startPCRRun: (runData: any) => Promise<string>
   stopPCRRun: (runId: string) => void
   getSystemStatus: () => void
-  scanBarcode: (scanData?: any, onProgress?: (progress: any) => void) => Promise<any>
+  startBarcodeScan: () => void
+  stopBarcodeScan: () => void
+  resetRack: () => void
+  getBarcodeProgress: () => void
+  barcodeSlots: Record<number, any>
   controlDevice: (device: string, number: number, state: number) => Promise<any>
   controlUVLight: (state: boolean) => Promise<any>
   controlSystemLight: (state: boolean) => Promise<any>
@@ -22,15 +27,8 @@ interface UseSocketReturn {
 
 export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
-  
-  // Keep track of active scan promises
-  const scanPromiseRef = useRef<{
-    resolve: (value: any) => void
-    reject: (reason?: any) => void
-    timeout: NodeJS.Timeout
-    scanId?: string
-  } | null>(null)
+  const [isConnected, setIsConnected] = useState(false) 
+  const [barcodeSlots, setBarcodeSlots] = useState<Record<number, any>>({})
 
   useEffect(() => {
     // Initialize socket connection
@@ -58,6 +56,14 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     socket.on('connect_error', (error) => {
       console.error('WebSocket connection error:', error)
       setIsConnected(false)
+    })
+
+    socket.on('beluga_initialized', (data) => {
+      console.log('Beluga initialized:', data)
+    })
+
+    socket.on('beluga_init_error', (data) => {
+      console.error('Beluga initialization error:', data)
     })
 
     // PCR-specific event listeners
@@ -94,41 +100,39 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
       console.log('System status:', data)
     })
 
-    // Barcode scanner event listeners
-    socket.on('scan_started', (data) => {
-      console.log('Barcode scan started:', data)
-      // Store the scan ID for matching with completion
-      if (scanPromiseRef.current && data.scan_id) {
-        scanPromiseRef.current.scanId = data.scan_id
-      }
+    // New barcode scanning listeners
+    socket.on('batch_update', (delta: any[]) => {
+      console.log('Received batch update:', delta)
+      
+      setBarcodeSlots(prev => {
+        const updated = { ...prev }
+        delta.forEach(slot => {
+          updated[slot.slot] = slot
+        })
+        return updated
+      })
     })
 
-    socket.on('scan_progress', (data) => {
-      console.log('Barcode scan progress:', data)
-      // You can emit this to your React components or handle it here
-      // For example, you could store progress in state or call a callback
+    socket.on('scan_started', (data) => {
+      console.log('Barcode scan started:', data)
+      setBarcodeSlots({}) // Clear previous data
     })
 
     socket.on('scan_complete', (data) => {
-      console.log('Barcode scan completed:', data)
-      
-      // Check if we have an active scan promise waiting
-      if (scanPromiseRef.current) {
-        clearTimeout(scanPromiseRef.current.timeout)
-        scanPromiseRef.current.resolve(data)
-        scanPromiseRef.current = null
-      }
+      console.log('Barcode scan complete:', data)
     })
 
-    socket.on('scan_error', (data) => {
-      console.error('Barcode scan error:', data)
-      
-      // Check if we have an active scan promise waiting
-      if (scanPromiseRef.current) {
-        clearTimeout(scanPromiseRef.current.timeout)
-        scanPromiseRef.current.reject(new Error(data.error || 'Barcode scan failed'))
-        scanPromiseRef.current = null
-      }
+    socket.on('scan_stopped', (data) => {
+      console.log('Barcode scan stopped:', data)
+    })
+
+    socket.on('progress', (data) => {
+      console.log('Scan progress:', data)
+    })
+
+    socket.on('scan_timeout', (data) => {
+      console.log('⏱️ Scan timeout:', data)
+      // Treat timeout like completion - stop scanning
     })
 
     socket.on('control_complete', (data) => {
@@ -157,15 +161,50 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
 
     // Cleanup on unmount
     return () => {
-      // Clean up any pending scan promise
-      if (scanPromiseRef.current) {
-        clearTimeout(scanPromiseRef.current.timeout)
-        scanPromiseRef.current.reject(new Error('Component unmounted'))
-        scanPromiseRef.current = null
-      }
-      socket.disconnect()
+      socket.off('batch_update')
+      socket.off('scan_started')
+      socket.off('scan_complete')
+      socket.off('scan_stopped')
+      socket.off('progress')
+      socket.off('scan_timeout')
     }
   }, [serverUrl])
+
+  const initializeBeluga = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      if (!socketRef.current || !isConnected) {
+        reject(new Error('Socket not connected'))
+        return
+      }
+
+      const controlId = `beluga_${Date.now()}`
+      const timeoutId = setTimeout(() => reject(new Error('Beluga initialization timeout')), 30000)
+
+      const handleComplete = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('beluga_initialized', handleComplete)
+          socketRef.current?.off('beluga_error', handleError)
+          resolve(data)
+        }
+      }
+
+      const handleError = (data: any) => {
+        if (data.control_id === controlId) {
+          clearTimeout(timeoutId)
+          socketRef.current?.off('beluga_initialized', handleComplete)
+          socketRef.current?.off('beluga_error', handleError)
+          reject(new Error(data.error || 'Beluga initialization failed'))
+        }
+      }
+
+      socketRef.current.on('beluga_initialized', handleComplete)
+      socketRef.current.on('beluga_error', handleError)
+
+      socketRef.current.emit('initialize_beluga_hardware', { control_id: controlId })
+    })
+  }
+
 
   // Function to start PCR run
   const startPCRRun = async (runData: any): Promise<string> => {
@@ -204,48 +243,6 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
         reject(error)
       }
     })
-  }
-
-  // Function to scan barcode - Fixed to use event-based approach
-  const scanBarcode = async (scanData: any = {}, onProgress?: (progress: any) => void): Promise<any> => {
-      return new Promise((resolve, reject) => {
-          if (!socketRef.current || !isConnected) {
-              reject(new Error('Socket not connected'))
-              return
-          }
-
-          // Set up progress handler - this fires immediately for each scan
-          const progressHandler = (data: any) => {
-                  if (onProgress) {
-                      onProgress(data) // This allows real-time updates
-                  }
-              
-          }
-          
-          socketRef.current.on('scan_progress', progressHandler)
-          
-          const timeout = setTimeout(() => {
-              if (scanPromiseRef.current) {
-                  socketRef.current?.off('scan_progress', progressHandler)
-                  scanPromiseRef.current = null
-                  reject(new Error('Barcode scan timeout'))
-              }
-          }, 600000)
-
-          scanPromiseRef.current = { 
-              resolve: (value) => {
-                  socketRef.current?.off('scan_progress', progressHandler)
-                  resolve(value)
-              }, 
-              reject: (reason) => {
-                  socketRef.current?.off('scan_progress', progressHandler)
-                  reject(reason)
-              }, 
-              timeout 
-          }
-
-          socketRef.current.emit('scan_barcode', scanData)
-      })
   }
 
   const controlUVLight = (state: boolean): Promise<any> => {
@@ -554,14 +551,43 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
     })
   }
 
+  const startBarcodeScan = () => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('start_barcode_scan')
+    }
+  }
+
+  const stopBarcodeScan = () => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('stop_barcode_scan')
+    }
+  }
+
+  const resetRack = () => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('reset_rack')
+    }
+  }
+
+  const getBarcodeProgress = () => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('get_progress')
+    }
+  }
+
   return {
     socket: socketRef.current,
     isConnected,
+    initializeBeluga,
     startPCRRun,
     stopPCRRun,
     getSystemStatus,
-    scanBarcode,  // Export the new barcode scanner function
-    controlDevice, // Export the device control function
+    startBarcodeScan,
+    stopBarcodeScan,
+    resetRack,
+    getBarcodeProgress,
+    barcodeSlots,
+    controlDevice,
     controlUVLight,
     controlSystemLight,
     controlHEPAFilter,

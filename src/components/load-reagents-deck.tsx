@@ -88,29 +88,29 @@ export function LoadReagentsDeck() {
             return (
                 <div className="relative w-[700px] h-[350px]">
                     {/* Top row circles */}
-                    <div className="absolute w-[196px] h-[196px] left-0 top-0 border-2 border-white rounded-full" />
+                    <div className="absolute w-[196px] h-[196px] left-0 top-0 border-2 border-[var(--pcr-text-primary)] rounded-full" />
                     {/* Middle big circle - Wash Buffer 2 (orange) */}
-                    <div className="absolute w-[169px] h-[169px] left-[271px] top-[27px] border-2 border-white rounded-full">
+                    <div className="absolute w-[169px] h-[169px] left-[271px] top-[27px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[149px] h-[149px] left-[9px] top-[9px] bg-[#FF933A] rounded-full" />
                     </div>
-                    <div className="absolute w-[146px] h-[146px] left-[514px] top-[50px] border-2 border-white rounded-full" />
+                    <div className="absolute w-[146px] h-[146px] left-[514px] top-[50px] border-2 border-[var(--pcr-text-primary)] rounded-full" />
 
                     {/* Bottom row circles - cfDNA pattern: empty, blue, yellow, green, red */}
-                    <div className="absolute w-[110px] h-[110px] left-0 top-[232px] border-2 border-white rounded-full" />
+                    <div className="absolute w-[110px] h-[110px] left-0 top-[232px] border-2 border-[var(--pcr-text-primary)] rounded-full" />
                     {/* Blue circle (second position) */}
-                    <div className="absolute w-[110px] h-[110px] left-[156px] top-[232px] border-2 border-white rounded-full">
+                    <div className="absolute w-[110px] h-[110px] left-[156px] top-[232px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[89px] h-[89px] left-[9px] top-[9px] bg-[#3A7FFF] rounded-full" />
                     </div>
                     {/* Yellow circle (Beads) - third position */}
-                    <div className="absolute w-[85px] h-[84px] left-[312px] top-[245px] border-2 border-white rounded-full">
+                    <div className="absolute w-[85px] h-[84px] left-[312px] top-[245px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[68px] h-[69px] left-[7.5px] top-[6.5px] bg-[#FFD700] rounded-full" />
                     </div>
                     {/* Green circle (Proteinase K) - fourth position */}
-                    <div className="absolute w-[85px] h-[84px] left-[443px] top-[245px] border-2 border-white rounded-full">
+                    <div className="absolute w-[85px] h-[84px] left-[443px] top-[245px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[68px] h-[69px] left-[7px] top-[6.5px] bg-[#50D57B] rounded-full" />
                     </div>
                     {/* Red circle (Lysis Buffer) - fifth position */}
-                    <div className="absolute w-[85px] h-[84px] left-[574px] top-[245px] border-2 border-white rounded-full">
+                    <div className="absolute w-[85px] h-[84px] left-[574px] top-[245px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[69px] h-[69px] left-[7px] top-[6px] bg-[#FC6468] rounded-full" />
                     </div>
                 </div>
@@ -119,18 +119,18 @@ export function LoadReagentsDeck() {
             // Original layout for non-cfDNA
             return (
                 <div className="relative w-[700px] h-[350px]">
-                    <div className="absolute w-[196px] h-[196px] left-0 top-0 border-2 border-white rounded-full" />
-                    <div className="absolute w-[169px] h-[169px] left-[271px] top-[27px] border-2 border-white rounded-full" />
-                    <div className="absolute w-[146px] h-[146px] left-[514px] top-[50px] border-2 border-white rounded-full" />
-                    <div className="absolute w-[110px] h-[110px] left-0 top-[232px] border-2 border-white rounded-full" />
-                    <div className="absolute w-[110px] h-[110px] left-[156px] top-[232px] border-2 border-white rounded-full">
+                    <div className="absolute w-[196px] h-[196px] left-0 top-0 border-2 border-[var(--pcr-text-primary)] rounded-full" />
+                    <div className="absolute w-[169px] h-[169px] left-[271px] top-[27px] border-2 border-[var(--pcr-text-primary)] rounded-full" />
+                    <div className="absolute w-[146px] h-[146px] left-[514px] top-[50px] border-2 border-[var(--pcr-text-primary)] rounded-full" />
+                    <div className="absolute w-[110px] h-[110px] left-0 top-[232px] border-2 border-[var(--pcr-text-primary)] rounded-full" />
+                    <div className="absolute w-[110px] h-[110px] left-[156px] top-[232px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[89px] h-[89px] left-[8.5px] top-[9.5px] bg-[#3A7FFF] rounded-full" />
                     </div>
-                    <div className="absolute w-[85px] h-[84px] left-[312px] top-[245px] border-2 border-white rounded-full" />
-                    <div className="absolute w-[85px] h-[84px] left-[443px] top-[245px] border-2 border-white rounded-full">
+                    <div className="absolute w-[85px] h-[84px] left-[312px] top-[245px] border-2 border-[var(--pcr-text-primary)] rounded-full" />
+                    <div className="absolute w-[85px] h-[84px] left-[443px] top-[245px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[68px] h-[69px] left-[7.5px] top-[7.5px] bg-[#50D57B] rounded-full" />
                     </div>
-                    <div className="absolute w-[85px] h-[84px] left-[574px] top-[245px] border-2 border-white rounded-full">
+                    <div className="absolute w-[85px] h-[84px] left-[574px] top-[245px] border-2 border-[var(--pcr-text-primary)] rounded-full">
                         <div className="absolute w-[69px] h-[69px] left-[7px] top-[7px] bg-[#FC6468] rounded-full" />
                     </div>
                 </div>
@@ -167,7 +167,7 @@ export function LoadReagentsDeck() {
                     Reagent deck
                 </h2>
 
-                <div className="w-full h-[417px] border-2 border-black dark:border-white rounded-[20px] flex items-center justify-center">
+                <div className="w-full h-[417px] border-2 border-[var(--pcr-text-primary)] rounded-[20px] flex items-center justify-center">
                     {/* Deck container (centred inside main rectangle) */}
                     {renderDeckPositions()}
                 </div>
@@ -178,7 +178,7 @@ export function LoadReagentsDeck() {
                     <button
                         key={index}
                         onClick={() => toggleReagentLoaded(index)}
-                        className="bg-[#212429] rounded-[20px] h-[268px] w-full flex flex-col justify-between p-6 text-left hover:bg-[#2a2e35] active:bg-[var(--pcr-accent)] transition-colors cursor-pointer"
+                        className="bg-[var(--pcr-card)] rounded-[20px] h-[268px] w-full flex flex-col justify-between p-6 text-left hover:bg-[var(--pcr-card-dark)] active:bg-[var(--pcr-accent)] transition-colors cursor-pointer"
                         style={{ touchAction: 'manipulation' }}
                     >
                         {/* Top row: dot + name */}
@@ -188,7 +188,7 @@ export function LoadReagentsDeck() {
                                 style={{ backgroundColor: reagent.color }}
                             />
                             <h3
-                                className="text-[32px] font-normal text-white"
+                                className="text-[32px] font-normal text-[var(--pcr-text-primary)]"
                                 style={{ fontFamily: "Space Grotesk" }}
                             >
                                 {reagent.name}
@@ -197,7 +197,7 @@ export function LoadReagentsDeck() {
 
                         {/* Middle details */}
                         <div className="ml-[48px] space-y-2">
-                            <p className="text-[24px] font-light text-white">
+                            <p className="text-[24px] font-light text-[var(--pcr-text-primary)]">
                                 Required volume: {reagent.requiredVolume}
                             </p>
                         </div>
@@ -224,7 +224,7 @@ export function LoadReagentsDeck() {
                                     </svg>
                                 )}
                             </div>
-                            <span className="text-[28px] font-light text-white">
+                            <span className="text-[28px] font-light text-[var(--pcr-text-primary)]">
                                 Loaded
                             </span>
                         </div>

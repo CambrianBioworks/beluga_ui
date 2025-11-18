@@ -1,14 +1,80 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useRunStore } from "@/lib/store"
 import NavigationButtons from "./navigation-buttons"
+import { Loader2 } from "lucide-react"
 
 export default function RunSetup2() {
     const { runData, setCurrentPage, setSampleInputMethod, setElutionType } = useRunStore()
     const [selectedSampleInput, setSelectedSampleInput] = useState<string>(runData.sampleInputMethod || "")
     const [selectedElutionType, setSelectedElutionType] = useState<string>(runData.elutionType || "")
+    const [imagesLoaded, setImagesLoaded] = useState<boolean>(false)
+    const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+
+    const allImages = [
+        "/icons/EDTA_tube.png",
+        "/icons/MCT_tube.png",
+        "/icons/Falcon_tube.png",
+        "/icons/96_dwp.png",
+        "/icons/2D_barcode_tube.png",
+        "/icons/PCR_plate.png"
+    ]
+
+    useEffect(() => {
+        const preloadImages = async () => {
+            const imagePromises = allImages.map((src, index) => {
+                return new Promise<string>((resolve, reject) => {
+                    const img = new window.Image()
+                    
+                    const timeoutId = setTimeout(() => {
+                        console.warn(`Image timeout: ${src}`)
+                        reject(new Error(`Timeout loading ${src}`))
+                    }, 15000)
+                    
+                    img.onload = () => {
+                        clearTimeout(timeoutId)
+                        console.log(`✅ Image loaded: ${src}`)
+                        resolve(src)
+                    }
+                    
+                    img.onerror = (error) => {
+                        clearTimeout(timeoutId)
+                        console.error(`❌ Image failed: ${src}`, error)
+                        reject(new Error(`Failed to load ${src}`))
+                    }
+                    
+                    setTimeout(() => {
+                        img.src = src
+                    }, index * 100)
+                })
+            })
+
+            try {
+                const results = await Promise.allSettled(imagePromises)
+                const successful = new Set<string>()
+                
+                results.forEach((result, index) => {
+                    if (result.status === 'fulfilled') {
+                        successful.add(result.value as string)
+                    } else {
+                        console.error(`Image ${allImages[index]} failed:`, result.reason)
+                    }
+                })
+                
+                setLoadedImages(successful)
+                setImagesLoaded(true)
+                console.log(`Loaded ${successful.size}/${allImages.length} images`)
+                
+            } catch (error) {
+                console.error('Preload error:', error)
+                setImagesLoaded(true)
+            }
+        }
+
+        preloadImages()
+    }, [])
 
     const handleBack = () => {
         setCurrentPage("run-setup")
@@ -30,8 +96,33 @@ export default function RunSetup2() {
 
     const isFormValid = selectedSampleInput !== "" && selectedElutionType !== ""
 
+    if (!imagesLoaded) {
+        return (
+            <div className="relative w-[1080px] h-[1920px] bg-[var(--pcr-bg)] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-6">
+                    <Loader2 className="w-16 h-16 text-[var(--pcr-accent)] animate-spin" />
+                    <p className="text-[var(--pcr-text-primary)] text-[28px] font-light" style={{ fontFamily: "Space Grotesk" }}>
+                        Loading images...
+                    </p>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="relative w-[1080px] h-[1920px] bg-[var(--pcr-bg)] overflow-hidden">
+            <div className="hidden">
+                {allImages.map((src, index) => (
+                    <Image
+                        key={`preload-${index}`}
+                        src={src}
+                        alt=""
+                        width={1}
+                        height={1}
+                        priority
+                    />
+                ))}
+            </div>
             {/* Header Section */}
             <div className="absolute w-[912px] h-[140px] left-[84px] top-[115px]">
                 {/* Title */}

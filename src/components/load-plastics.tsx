@@ -294,17 +294,17 @@ useEffect(() => {
             </div>
 
             <div className="absolute w-[877px] h-[535px] left-[103px] top-[1095px]">
-<img
-    src={selectedPlastics.some(selected => selected) ? deckImages[currentImageIndex] : defaultImage}
-    alt="Deck position layout"
-    style={{ width: '877px', height: '535px', objectFit: 'contain' }}
-    className="transition-opacity duration-300"
-    onError={(e) => {
-        const target = e.target as HTMLImageElement
-        console.error('Image display failed:', target.src)
-        target.src = '/fallback-image.png' // Add a fallback
-    }}
-/>
+                <img
+                    src={selectedPlastics.some(selected => selected) ? deckImages[currentImageIndex] : defaultImage}
+                    alt="Deck position layout"
+                    style={{ width: '877px', height: '535px', objectFit: 'contain' }}
+                    className="transition-opacity duration-300"
+                    onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        console.error('Image display failed:', target.src)
+                        target.src = '/fallback-image.png' // Add a fallback
+                    }}
+                />
             </div>
 
             <div className="absolute bottom-20 left-0 right-0 flex justify-center py-4">

@@ -5,7 +5,7 @@ import { useRunStore } from "../lib/store"
 import { Check, Pause, AlertTriangle } from "lucide-react"
 
 export default function RunPage() {
-    const { runData, setCurrentPage } = useRunStore()
+    const { runData, setCurrentPage, resetRunData } = useRunStore()
     const { runId } = runData
     
     // SINGLE TIME VARIABLE - CHANGE THIS TO SET TOTAL DURATION
@@ -67,6 +67,7 @@ export default function RunPage() {
                 if (prev <= 0) {
                     clearInterval(timer)
                     // Run complete - could navigate to completion page
+                    resetRunData()
                     return 0
                 }
                 
@@ -114,6 +115,7 @@ export default function RunPage() {
     }
 
     const confirmAbort = () => {
+        resetRunData()
         setCurrentPage("dashboard")
     }
 

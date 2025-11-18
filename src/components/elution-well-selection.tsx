@@ -8,7 +8,6 @@ import { RotateCcw } from "lucide-react"
 export default function ElutionWellSelection() {
     const { setCurrentPage, setSelectedWells: setStoreSelectedWells, runData } = useRunStore()
     const [selectedWells, setSelectedWells] = useState<string[]>([])
-    console.log("Number of samples from store:", runData)
 
     const rows = ["A", "B", "C", "D", "E", "F", "G", "H"]
     const columns = Array.from({ length: 12 }, (_, i) => i + 1)

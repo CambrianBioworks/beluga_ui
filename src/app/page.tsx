@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Settings, Wifi, HelpCircle, Lightbulb, Sun, Moon, X } from "lucide-react"
+import { Wifi, HelpCircle, Lightbulb, Sun, Moon, X, RotateCw, Zap, Loader2 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRunStore } from "@/lib/store"
 import RunSetup from "@/components/run-setup"
@@ -16,10 +16,10 @@ import ElutionWellSelection from "@/components/elution-well-selection"
 import PreRunSummary from "@/components/pre-run-summary"
 import RunPage from "@/components/run-page"
 import WiFiModal from "@/components/wifi-modal"
-import { useSocket } from "@/lib/useSocket"
+import { useSocketContext } from "@/lib/socketProvider"
 
-const UVIcon = () => (
-  <svg viewBox="0 0 100 100" className="w-20 h-20 text-white">
+const UVIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={`w-20 h-20 ${className}`}>
     <g fill="currentColor">
       <rect x="45" y="20" width="10" height="60" rx="5" />
       <rect x="20" y="45" width="60" height="10" rx="5" />
@@ -31,8 +31,8 @@ const UVIcon = () => (
   </svg>
 )
 
-const HEPAIcon = () => (
-  <svg viewBox="0 0 100 100" className="w-20 h-20 text-white">
+const HEPAIcon = ({ className = "" }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" className={`w-20 h-20 ${className}`}>
     <g fill="currentColor">
       <rect x="20" y="30" width="60" height="40" rx="4" fill="none" stroke="currentColor" strokeWidth="3" />
       <path d="M30 40 L70 40 M30 50 L70 50 M30 60 L70 60" stroke="currentColor" strokeWidth="2" />
@@ -55,7 +55,7 @@ export default function PCRDashboard() {
   const [mounted, setMounted] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedProtocol, setSelectedProtocol] = useState("")
-  const { controlUVLight, controlSystemLight, controlHEPAFilter, getWiFiStatus, scanWiFiNetworks, connectToWiFi, disconnectWiFi, isConnected } = useSocket()
+  const { controlUVLight, controlSystemLight, controlHEPAFilter, getWiFiStatus, scanWiFiNetworks, connectToWiFi, disconnectWiFi, isConnected, initializeBeluga } = useSocketContext()
   const [showWiFiModal, setShowWiFiModal] = useState(false)
   const [deviceStates, setDeviceStates] = useState({
     uvLight: false,
@@ -70,6 +70,14 @@ export default function PCRDashboard() {
   const [controlLoading, setControlLoading] = useState<string | null>(null)
 
   const { currentPage, setCurrentPage, setProtocolType, setSampleType } = useRunStore()
+  const [imagesLoaded, setImagesLoaded] = useState<boolean>(false)
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+
+  const allImages = [
+    "/DNA.png",
+    "/RNA.png",
+    "/Virus.png"
+  ]
 
   useEffect(() => {
     // Initialize page from URL hash on mount
@@ -113,6 +121,60 @@ export default function PCRDashboard() {
       hour12: true,
     })
   }
+
+  useEffect(() => {
+    const preloadImages = async () => {
+      const imagePromises = allImages.map((src, index) => {
+        return new Promise<string>((resolve, reject) => {
+          const img = new window.Image()
+          
+          const timeoutId = setTimeout(() => {
+            console.warn(`Image timeout: ${src}`)
+            reject(new Error(`Timeout loading ${src}`))
+          }, 15000)
+          
+          img.onload = () => {
+            clearTimeout(timeoutId)
+            console.log(`✅ Image loaded: ${src}`)
+            resolve(src)
+          }
+          
+          img.onerror = (error) => {
+            clearTimeout(timeoutId)
+            console.error(`❌ Image failed: ${src}`, error)
+            reject(new Error(`Failed to load ${src}`))
+          }
+          
+          setTimeout(() => {
+            img.src = src
+          }, index * 100)
+        })
+      })
+
+      try {
+        const results = await Promise.allSettled(imagePromises)
+        const successful = new Set<string>()
+        
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            successful.add(result.value as string)
+          } else {
+            console.error(`Image ${allImages[index]} failed:`, result.reason)
+          }
+        })
+        
+        setLoadedImages(successful)
+        setImagesLoaded(true)
+        console.log(`Loaded ${successful.size}/${allImages.length} images`)
+        
+      } catch (error) {
+        console.error('Preload error:', error)
+        setImagesLoaded(true)
+      }
+    }
+
+    preloadImages()
+  }, [])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -263,13 +325,38 @@ export default function PCRDashboard() {
     return <RunPage />
   }
 
+  if (!imagesLoaded && currentPage === "dashboard") {
+    return (
+      <div className="relative w-[1080px] h-[1920px] bg-[var(--pcr-bg)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <Loader2 className="w-16 h-16 text-[var(--pcr-accent)] animate-spin" />
+          <p className="text-[var(--pcr-text-primary)] text-[28px] font-light" style={{ fontFamily: "Space Grotesk" }}>
+            Loading dashboard...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative w-[1080px] h-[1920px] bg-[var(--pcr-bg)] mx-auto overflow-hidden">
+      <div className="hidden">
+        {allImages.map((src, index) => (
+          <Image
+            key={`preload-${index}`}
+            src={src}
+            alt=""
+            width={1}
+            height={1}
+            priority
+          />
+        ))}
+      </div>
       {isModalOpen && <div className="absolute inset-0 backdrop-blur-sm z-40"></div>}
 
       <div className="absolute top-16 right-16 flex gap-4">
-        <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300">
-          <Settings className="size-12" />
+        <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300" onClick={initializeBeluga}>
+          <RotateCw className="size-12" />
         </Button>
         <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300"   onClick={() => setShowWiFiModal(true)}>
           <Wifi className="size-12" />
@@ -377,19 +464,21 @@ export default function PCRDashboard() {
         className={`absolute left-[84px] top-[1326px] w-[446px] h-[174px] rounded-[20px] cursor-pointer transition-colors ${
           deviceStates.uvLight 
             ? 'bg-[var(--pcr-accent)] hover:bg-blue-700' 
-            : 'bg-[var(--pcr-card)] hover:bg-[var(--pcr-card-dark)]'
+            : 'bg-[var(--pcr-card)] hover:opacity-90'
         } ${controlLoading === 'uv' ? 'opacity-50 cursor-not-allowed' : ''}`}
         onClick={handleUVLightToggle}
       >
         <div className="relative h-full">
-          <span className="absolute top-6 left-6 text-[32px] leading-[40px] font-normal text-white">
+          <span className={`absolute top-6 left-6 text-[32px] leading-[40px] font-normal ${
+            deviceStates.uvLight ? 'text-white' : 'text-[var(--pcr-text-primary)]'
+          }`}>
             UV light {deviceStates.uvLight ? '(ON)' : '(OFF)'}
           </span>
           {controlLoading === 'uv' && (
             <span className="absolute top-16 left-6 text-sm text-white">Controlling...</span>
           )}
           <div className="absolute bottom-6 right-6">
-            <UVIcon />
+            <UVIcon className={deviceStates.uvLight ? 'text-white' : 'text-[var(--pcr-text-primary)]'} />
           </div>
         </div>
       </div>
@@ -439,7 +528,7 @@ export default function PCRDashboard() {
             <span className="absolute top-16 left-6 text-sm text-white">Controlling...</span>
           )}
           <div className="absolute bottom-6 right-6">
-            <HEPAIcon />
+            <HEPAIcon className={deviceStates.hepaFilter ? 'text-white' : 'text-[var(--pcr-text-primary)]'} />
           </div>
         </div>
       </div>
@@ -480,7 +569,7 @@ export default function PCRDashboard() {
               >
                 <button
                   onClick={() => handleSampleTypeSelect(option.value)}
-                  className="w-full h-full bg-[var(--pcr-card-dark)] rounded-[20px] active:bg-[#3a3f45] transition-all duration-200 ease-in-out transform active:scale-95"
+                  className="w-full h-full bg-[var(--pcr-card-dark)] rounded-[20px] active:bg-[var(--pcr-accent)] transition-all duration-200 ease-in-out transform active:scale-95"
                 >
                   <span className="text-[32px] leading-[40px] font-normal text-[var(--pcr-text-primary)] ml-6 text-left block">
                     {option.label}

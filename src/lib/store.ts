@@ -8,6 +8,7 @@ interface RunData {
   operatorName: string
   numberOfSamples: string
   sampleInputMethod: string
+  samplePositions?: number[]
   elutionType: string  
   reagentVolumes: string[]
   pipetteTips: string[]
@@ -29,6 +30,14 @@ interface RunStore {
   activeRunId: string | null
   runProgress: RunProgress | null
   runError: string | null
+  barcodeSlots: Record<number, any>
+  isScanning: boolean
+  scanProgress: {
+    mapped_slots: number
+    sample_count: number
+    empty_count: number
+    remaining: number
+  } | null
   
   // Existing setters
   setCurrentPage: (type: string) => void
@@ -43,6 +52,10 @@ interface RunStore {
   setPipetteTips: (tips: string[]) => void
   setSelectedWells: (wells: string[]) => void
   resetRunData: () => void
+  setBarcodeSlots: (slots: Record<number, any>) => void
+  setIsScanning: (scanning: boolean) => void
+  setScanProgress: (progress: any) => void
+  resetBarcodeData: () => void
   
   // New socket setters
   setSocketConnected: (connected: boolean) => void
@@ -73,6 +86,9 @@ export const useRunStore = create<RunStore>((set) => ({
   activeRunId: null,
   runProgress: null,
   runError: null,
+  barcodeSlots: {},
+  isScanning: false,
+  scanProgress: null,
   
   // Existing setters
   setCurrentPage: (page) => set({ currentPage: page }),
@@ -133,4 +149,13 @@ export const useRunStore = create<RunStore>((set) => ({
   setActiveRunId: (runId) => set({ activeRunId: runId }),
   setRunProgress: (progress) => set({ runProgress: progress }),
   setRunError: (error) => set({ runError: error }),
+
+  setBarcodeSlots: (slots) => set({ barcodeSlots: slots }),
+  setIsScanning: (scanning) => set({ isScanning: scanning }),
+  setScanProgress: (progress) => set({ scanProgress: progress }),
+  resetBarcodeData: () => set({ 
+    barcodeSlots: {}, 
+    isScanning: false, 
+    scanProgress: null 
+  }),
 }))

@@ -4,14 +4,14 @@ import { useState, useEffect } from "react"
 import { useRunStore } from "../lib/store"
 import NavigationButtons from "./navigation-buttons"
 import { Check } from "lucide-react"
-import { useSocket } from "../lib/useSocket"
+import { useSocketContext } from "@/lib/socketProvider"
 import { AlertTriangle } from "lucide-react"
 
 export default function PreRunSummary() {
-    const { runData, setCurrentPage } = useRunStore()
+    const { runData, setCurrentPage, resetRunData } = useRunStore()
     const [isStarting, setIsStarting] = useState(false)
     const [startError, setStartError] = useState<string | null>(null)
-    const { isConnected, startPCRRun } = useSocket()
+    const { isConnected, startPCRRun } = useSocketContext()
 
     const { runId, operatorName, numberOfSamples, selectedWells, pipetteTips } = runData
     const [showSystemCheckModal, setShowSystemCheckModal] = useState(false)
@@ -71,11 +71,14 @@ export default function PreRunSummary() {
             console.log('Sending run data to Python server:', runData)
 
             startPCRRun({
-                run_id: runData.runId,
-                operator_name: runData.operatorName,
+                run_id: runData.runId || '12345',
+                operator_name: runData.operatorName || 'Unknown',
                 number_of_samples: runData.numberOfSamples,
                 protocol_type: runData.protocolType,
                 sample_type: runData.sampleType,
+                sample_positions: runData.samplePositions,
+                sample_input_method: runData.sampleInputMethod,
+                elution_type: runData.elutionType,
                 selected_wells: runData.selectedWells,
                 reagent_volumes: runData.reagentVolumes,
                 pipette_tips: runData.pipetteTips

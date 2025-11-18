@@ -3,27 +3,15 @@
 import { useRunStore } from "@/lib/store"
 import NavigationButtons from "./navigation-buttons"
 import { useState, useEffect } from "react"
-import { Camera, Check, Loader2 } from "lucide-react"
-import { useSocket } from "@/lib/useSocket"
+import { Camera, Check, Loader2, X } from "lucide-react"
+import { useSocketContext } from "@/lib/socketProvider"
 
 export default function LoadSamples() {
-    const { setCurrentPage, runData } = useRunStore()
     const [manualBarcode, setManualBarcode] = useState("")
-    const [isScanning, setIsScanning] = useState(false)  // Add this
-    const { scanBarcode, isConnected } = useSocket()
+    const { setCurrentPage, runData, barcodeSlots, isScanning, setIsScanning } = useRunStore()
+    const { startBarcodeScan, stopBarcodeScan, isConnected } = useSocketContext()
     const [scannedSamples, setScannedSamples] = useState<{ id: number, barcode: string, scanned: boolean }[]>([])
     const [imageLoaded, setImageLoaded] = useState<boolean>(false)
-    const [scanProgress, setScanProgress] = useState<{
-        currentSlot: number | null;
-        scannedCount: number;
-        totalSlots: number;
-        lastScannedSlot: number | null;
-    }>({
-        currentSlot: null,
-        scannedCount: 0,
-        totalSlots: 16,
-        lastScannedSlot: null
-    })
 
     const isCfDNA = runData.sampleType && runData.sampleType.toLowerCase() === 'cfdna'
     const numberOfSamples = parseInt(runData.numberOfSamples) || 0
@@ -83,6 +71,32 @@ export default function LoadSamples() {
         }
     }, [isMCT])
 
+    // Listen for barcode slot updates from backend
+    useEffect(() => {
+        if (!barcodeSlots || Object.keys(barcodeSlots).length === 0) return
+
+        // Convert barcodeSlots object to scannedSamples array format
+        // Only include slots with actual sample barcodes (not empty slots)
+        const samples = Object.values(barcodeSlots)
+            .filter((slot: any) => slot.status === "sample") // Only show actual samples
+            .map((slot: any) => ({
+                id: slot.slot,
+                barcode: slot.barcode,
+                scanned: true
+            }))
+            .sort((a, b) => a.id - b.id)
+
+        setScannedSamples(samples)
+
+        // Check if scanning is complete (all 16 slots scanned, not all with samples)
+        const totalScanned = Object.values(barcodeSlots)
+            .filter((slot: any) => slot.status !== "unscanned").length
+        
+        if (totalScanned === 32) {
+            setIsScanning(false)
+        }
+    }, [barcodeSlots])
+
     const handleAddBarcode = () => {
         if (manualBarcode.trim()) {
             const newSample = {
@@ -95,66 +109,46 @@ export default function LoadSamples() {
         }
     }
 
-    const handleScanBarcode = async () => {
+    const handleScanBarcode = () => {
         if (!isConnected) {
             console.error("Not connected to server")
             return
         }
 
+        useRunStore.setState((state) => ({
+            barcodeSlots: {},  // ← IMPORTANT: Clear backend slot data
+            runData: {
+                ...state.runData,
+                samplePositions: []  // Clear sample positions properly
+            }
+        }))
+        setScannedSamples([])
+
         setIsScanning(true)
-        setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
-        setScannedSamples([]) // Clear previous results
+        startBarcodeScan()
+    }
 
-        try {
-            const result = await scanBarcode({}, (progress) => {
-                if (progress.type === 'slot_ready') {
-                    console.log("Slot ready:", progress.slot)
-                    setScanProgress(prev => ({
-                        ...prev,
-                        currentSlot: progress.slot
-                    }))
-                } else if (progress.type === 'slot_scanned') {
-                    setScanProgress(prev => ({
-                        ...prev,
-                        currentSlot: null,
-                        scannedCount: progress.progress,
-                        lastScannedSlot: progress.slot
-                    }))
-
-                    // Update scanned samples in real-time
-                    setScannedSamples(prev => {
-                        const updated = [...prev]
-                        const existingIndex = updated.findIndex(s => s.id === progress.slot)
-
-                        if (existingIndex >= 0) {
-                            updated[existingIndex] = {
-                                id: progress.slot,
-                                barcode: progress.barcode,
-                                scanned: true
-                            }
-                        } else {
-                            updated.push({
-                                id: progress.slot,
-                                barcode: progress.barcode,
-                                scanned: true
-                            })
-                        }
-
-                        return updated.sort((a, b) => a.id - b.id)
-                    })
-                } else {
-                    console.log("Unknown progress type:", progress.type)
-                }
-            })
-
-            console.log("Final barcode scan result:", result)
-
-        } catch (error) {
-            console.error("Barcode scan failed:", error)
-        } finally {
-            setIsScanning(false)
-            setScanProgress({ currentSlot: null, scannedCount: 0, totalSlots: 16, lastScannedSlot: null })
-        }
+    const handleStopScan = () => {
+        console.log('Stopping scan and saving sample positions')
+        
+        // Stop the scan
+        setIsScanning(false)
+        stopBarcodeScan()
+        
+        // Save sample positions
+        const positions = Object.values(barcodeSlots)
+            .filter((slot: any) => slot.status === "sample")
+            .map((slot: any) => slot.slot)
+            .sort((a, b) => a - b)
+        
+        console.log('Sample positions:', positions)
+        
+        useRunStore.setState((state) => ({
+            runData: {
+                ...state.runData,
+                samplePositions: positions
+            }
+        }))
     }
 
     const handleKeyPress = (e: { key: string }) => {
@@ -234,9 +228,12 @@ export default function LoadSamples() {
                                         const x = marginX + (col * spacingX);
                                         const y = marginY + (row * spacingY);
 
-                                        // Calculate sample number for vertical fill (column by column, top to bottom)
-                                        const sampleNumber = col * 4 + row + 1; // Fill vertically: column-first order
-                                        const isFilled = sampleNumber <= numberOfSamples;
+                                        // Calculate slot number (1-32) for this position
+                                        const slotNumber = col * 4 + row + 1;
+
+                                        // Check if THIS SPECIFIC SLOT has been scanned with a sample
+                                        const slotData = barcodeSlots[slotNumber];
+                                        const isFilled = slotData && slotData.status === "sample";
 
                                         return (
                                             <div
@@ -252,7 +249,7 @@ export default function LoadSamples() {
                                             >
                                                 {isFilled && (
                                                     <span className="text-[var(--pcr-bg)] text-[16px] font-medium">
-                                                        {sampleNumber}
+                                                        {slotNumber}
                                                     </span>
                                                 )}
                                             </div>
@@ -306,8 +303,11 @@ export default function LoadSamples() {
                                                 {Array.from({ length: 12 }, (_, colIndex) => {
                                                     // Calculate well number in column-by-column order
                                                     const wellNumber = colIndex * 8 + rowIndex + 1
-                                                    const isFilled = wellNumber <= numberOfSamples
                                                     const wellId = `${row}${colIndex + 1}`
+
+                                                    // Check if THIS SPECIFIC WELL has been scanned with a sample
+                                                    const slotData = barcodeSlots[wellNumber];
+                                                    const isFilled = slotData && slotData.status === "sample";
 
                                                     return (
                                                         <div
@@ -336,27 +336,33 @@ export default function LoadSamples() {
 
                 {/* Scan barcode button */}
                 <div className="max-w-[912px] w-full mb-8">
-                    <button
-                        onClick={handleScanBarcode}
-                        disabled={!isConnected || isScanning}
-                        className="w-full h-[93px] bg-[var(--pcr-card)] rounded-[20px] active:bg-[var(--pcr-card-dark)] transition-colors duration-150 flex items-center justify-center gap-4 hover:bg-[var(--pcr-card-dark)] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isScanning ? (
-                            <>
+                    {isScanning ? (
+                        <div className="flex gap-4">
+                            <div className="flex-1 h-[93px] bg-[var(--pcr-card)] rounded-[20px] flex items-center justify-center gap-4">
                                 <Loader2 className="w-[50px] h-[50px] text-[var(--pcr-accent)] animate-spin" />
                                 <span className="text-[var(--pcr-text-primary)] text-[28px] font-light" style={{ fontFamily: "Space Grotesk" }}>
                                     Scanning...
                                 </span>
-                            </>
-                        ) : (
-                            <>
-                                <Camera className="w-[50px] h-[50px] text-[var(--pcr-text-primary)]" />
-                                <span className="text-[var(--pcr-text-primary)] text-[28px] font-light" style={{ fontFamily: "Space Grotesk" }}>
-                                    Scan barcode
-                                </span>
-                            </>
-                        )}
-                    </button>
+                            </div>
+                            <button
+                                onClick={handleStopScan}
+                                className="w-[172px] h-[93px] bg-[var(--pcr-card)] rounded-[20px] transition-colors duration-150 flex items-center justify-center hover:bg-[var(--pcr-card-dark)] active:bg-[var(--pcr-card-dark)]"
+                            >
+                                <X className="w-[40px] h-[40px] text-red-500" strokeWidth={2.5} />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleScanBarcode}
+                            disabled={!isConnected}
+                            className="w-full h-[93px] bg-[var(--pcr-card)] rounded-[20px] active:bg-[var(--pcr-card-dark)] transition-colors duration-150 flex items-center justify-center gap-4 hover:bg-[var(--pcr-card-dark)] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Camera className="w-[50px] h-[50px] text-[var(--pcr-text-primary)]" />
+                            <span className="text-[var(--pcr-text-primary)] text-[28px] font-light" style={{ fontFamily: "Space Grotesk" }}>
+                                Scan barcode
+                            </span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Manual barcode entry section */}
@@ -429,8 +435,18 @@ export default function LoadSamples() {
                         showNext={true}
                         backDisabled={false}
                         nextDisabled={false}
-                        onBack={() => setCurrentPage("load-reagents-deck")}
-                        onNext={() => setCurrentPage("tip-box")}
+                        onBack={() => {
+                            if (isScanning) {
+                                handleStopScan()
+                            }
+                            setCurrentPage("load-reagents-deck")
+                        }}
+                        onNext={() => {
+                            if (isScanning) {
+                                handleStopScan()
+                            }
+                            setCurrentPage("tip-box")
+                        }}
                     />
                 </div>
             </div>
@@ -473,22 +489,14 @@ export default function LoadSamples() {
 
                 {/* Sample positions */}
                 {Array.from({ length: 16 }, (_, index) => {
-                    let isFilled = false
-                    let sampleNumber = null
+                    const slotNumber = 17 + index;
 
-                    if (isCfDNA) {
-                        // For cfDNA, fill from bottom to top (max 16)
-                        const positionFromBottom = 16 - index
-                        isFilled = positionFromBottom <= Math.min(numberOfSamples, 16)
-                        sampleNumber = isFilled ? positionFromBottom : null
-                    } else {
-                        // For others, fill from top to bottom (first rack)
-                        const positionFromBottom = 16 - index
-                        isFilled = positionFromBottom <= numberOfSamples
-                        sampleNumber = isFilled ? positionFromBottom : null
-                    }
+                    // Check if THIS SPECIFIC SLOT has been scanned with a sample
+                    const slotData = barcodeSlots[slotNumber];
+                    const isFilled = slotData && slotData.status === "sample";
+                    const sampleNumber = isFilled ? slotNumber : null;
 
-                    const yPosition = 20 + index * 60
+                    const yPosition = 20 + index * 60;
 
                     return (
                         <div
@@ -523,10 +531,13 @@ export default function LoadSamples() {
                     {/* Sample positions for second rack (17-32) */}
                     {Array.from({ length: 16 }, (_, index) => {
                         // Calculate from bottom to top for cfDNA style
-                        const positionFromBottom = 16 - index
-                        const sampleNumber = 16 + positionFromBottom  // This gives us 32, 31, 30... down to 17
-                        const isFilled = numberOfSamples >= (32 - index)  // Fill from bottom when we have enough samples
-                        const yPosition = 20 + index * 60
+                        const sampleNumber = index + 1;
+
+                        // Check if THIS SPECIFIC SLOT has been scanned with a sample
+                        const slotData = barcodeSlots[sampleNumber];
+                        const isFilled = slotData && slotData.status === "sample";
+
+                        const yPosition = 20 + index * 60;
 
                         return (
                             <div
@@ -553,13 +564,9 @@ export default function LoadSamples() {
 
             {/* Scan barcode button */}
             <div className="absolute w-[670px] h-[93px] left-[326px] top-[448px]">
-                <button
-                    onClick={handleScanBarcode}
-                    disabled={!isConnected || isScanning}
-                    className="w-full h-full bg-[var(--pcr-card)] rounded-[20px] active:bg-[var(--pcr-card-dark)] transition-colors duration-150 flex items-center justify-center gap-4 hover:bg-[var(--pcr-card-dark)] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isScanning ? (
-                        <>
+                {isScanning ? (
+                    <div className="flex gap-4 h-full">
+                        <div className="flex-1 h-full bg-[var(--pcr-card)] rounded-[20px] flex items-center justify-center gap-4">
                             <Loader2 className="w-[50px] h-[50px] text-[var(--pcr-accent)] animate-spin" />
                             <span
                                 className="text-[var(--pcr-text-primary)] text-[28px] font-light leading-[40px]"
@@ -567,19 +574,29 @@ export default function LoadSamples() {
                             >
                                 Scanning...
                             </span>
-                        </>
-                    ) : (
-                        <>
-                            <Camera className="w-[50px] h-[50px] text-[var(--pcr-text-primary)]" />
-                            <span
-                                className="text-[var(--pcr-text-primary)] text-[28px] font-light leading-[40px]"
-                                style={{ fontFamily: "Space Grotesk" }}
-                            >
-                                Scan barcode
-                            </span>
-                        </>
-                    )}
-                </button>
+                        </div>
+                        <button
+                            onClick={handleStopScan}
+                            className="w-[151.86px] h-full bg-[var(--pcr-card)] rounded-[20px] transition-colors duration-150 flex items-center justify-center hover:bg-[var(--pcr-card-dark)] active:bg-[var(--pcr-card-dark)]"
+                        >
+                            <X className="w-[40px] h-[40px] text-red-500" strokeWidth={2.5} />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={handleScanBarcode}
+                        disabled={!isConnected}
+                        className="w-full h-full bg-[var(--pcr-card)] rounded-[20px] active:bg-[var(--pcr-card-dark)] transition-colors duration-150 flex items-center justify-center gap-4 hover:bg-[var(--pcr-card-dark)] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Camera className="w-[50px] h-[50px] text-[var(--pcr-text-primary)]" />
+                        <span
+                            className="text-[var(--pcr-text-primary)] text-[28px] font-light leading-[40px]"
+                            style={{ fontFamily: "Space Grotesk" }}
+                        >
+                            Scan barcode
+                        </span>
+                    </button>
+                )}
             </div>
 
             {/* Manual barcode entry section */}
@@ -690,8 +707,18 @@ export default function LoadSamples() {
                     showNext={true}
                     backDisabled={false}
                     nextDisabled={false}
-                    onBack={() => setCurrentPage("load-reagents-deck")}
-                    onNext={() => setCurrentPage("tip-box")}
+                    onBack={() => {
+                        if (isScanning) {
+                            handleStopScan()
+                        }
+                        setCurrentPage("load-reagents-deck")
+                    }}
+                    onNext={() => {
+                        if (isScanning) {
+                            handleStopScan()
+                        }
+                        setCurrentPage("tip-box")
+                    }}
                 />
             </div>
         </div>
