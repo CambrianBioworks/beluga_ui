@@ -1,0 +1,81 @@
+# GitHub Actions Workflow for Frontend Build & Release
+#
+# This workflow should be placed in the frontend repository at:
+# .github/workflows/build-and-release.yml
+#
+# It builds the Next.js application and creates a GitHub release with the
+# compiled artifact that can be deployed to Beluga PCR devices.
+
+name: Build and Release Frontend
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v2.1.3, etc.
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Prepare release artifact
+        run: |
+          # Create a clean directory with only production files
+          mkdir -p release-artifact
+
+          # Copy built files
+          cp -r .next release-artifact/
+          cp -r public release-artifact/
+
+          # Copy necessary config files
+          cp package.json release-artifact/
+          cp package-lock.json release-artifact/
+          cp next.config.* release-artifact/ 2>/dev/null || true
+
+          # Copy any other required files (adjust as needed)
+          # cp -r src release-artifact/ # Only if needed at runtime
+
+          # Create tarball
+          cd release-artifact
+          tar -czf ../beluga-frontend-${{ github.ref_name }}.tar.gz .
+          cd ..
+
+      - name: Generate checksum
+        run: |
+          sha256sum beluga-frontend-${{ github.ref_name }}.tar.gz > beluga-frontend-${{ github.ref_name }}.tar.gz.sha256
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            beluga-frontend-${{ github.ref_name }}.tar.gz
+            beluga-frontend-${{ github.ref_name }}.tar.gz.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Display artifact info
+        run: |
+          echo "Release created for ${{ github.ref_name }}"
+          echo "Artifact size: $(du -h beluga-frontend-${{ github.ref_name }}.tar.gz | cut -f1)"
+          echo "SHA256: $(cat beluga-frontend-${{ github.ref_name }}.tar.gz.sha256)"
