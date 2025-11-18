@@ -88,7 +88,6 @@ export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocke
 
     socket.on('run_error', (data) => {
       console.error('PCR run error:', data)
-      // Handle errors here
     })
 
     socket.on('run_complete', (data) => {
