@@ -1,50 +1,55 @@
 import { NextResponse } from 'next/server';
+import { spawn } from 'child_process';
 
-const LIGHTSAIL_WEBHOOK_URL = process.env.LIGHTSAIL_WEBHOOK_URL || 'http://100.120.139.108:5000/trigger-update';
-const WEBHOOK_AUTH_TOKEN = process.env.WEBHOOK_AUTH_TOKEN || '';
-const MACHINE_ID = process.env.MACHINE_ID || '';
+const ANSIBLE_REPO = 'https://github.com/CambrianBioworks/ansible-beluga-deployment';
+const ANSIBLE_BRANCH = 'main';
+const PLAYBOOK = 'playbooks/self-update.yml';
 
 export async function POST() {
   try {
-    // Optional: Check machine state once
-    // For now, we'll trust the frontend checked before calling
+    // Development mode: Simulate update trigger
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEV MODE] Simulating ansible-pull trigger...');
 
-    if (!WEBHOOK_AUTH_TOKEN) {
-      return NextResponse.json({
-        success: false,
-        error: 'Webhook authentication token not configured'
-      }, { status: 500 });
-    }
+      // Simulate delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Call Lightsail webhook
-    const response = await fetch(LIGHTSAIL_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${WEBHOOK_AUTH_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ machine_id: MACHINE_ID })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
       return NextResponse.json({
         success: true,
-        message: 'Update started successfully',
-        data
-      }, { status: 200 });
-    } else {
-      const errorText = await response.text();
-      return NextResponse.json({
-        success: false,
-        error: `Webhook returned status ${response.status}: ${errorText}`
-      }, { status: 500 });
+        message: 'Update started (simulated)',
+        pid: 'dev-mode-12345'
+      }, { status: 202 });
     }
+
+    // Production mode: Trigger ansible-pull in background
+    const ansiblePull = spawn(
+      'ansible-pull',
+      [
+        '-U', ANSIBLE_REPO,
+        '-C', ANSIBLE_BRANCH,
+        '-i', 'localhost,',
+        PLAYBOOK
+      ],
+      {
+        detached: true,
+        stdio: 'ignore'
+      }
+    );
+
+    // Unref so it runs independently
+    ansiblePull.unref();
+
+    return NextResponse.json({
+      success: true,
+      message: 'Update started',
+      pid: ansiblePull.pid
+    }, { status: 202 });
+
   } catch (error) {
     console.error('Error triggering update:', error);
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : 'Failed to start update'
     }, { status: 500 });
   }
 }
