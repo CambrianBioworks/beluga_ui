@@ -21,7 +21,7 @@ export async function POST() {
       }, { status: 202 });
     }
 
-    // Production mode: Trigger ansible-pull in background
+    // Production mode: Trigger ansible-pull in background.
     const ansiblePull = spawn(
       'ansible-pull',
       [
