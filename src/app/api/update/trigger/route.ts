@@ -6,7 +6,7 @@ const MACHINE_ID = process.env.MACHINE_ID || '';
 
 export async function POST() {
   try {
-    // Optional: Check machine state one more time
+    // Optional: Check machine state once
     // For now, we'll trust the frontend checked before calling
 
     if (!WEBHOOK_AUTH_TOKEN) {
