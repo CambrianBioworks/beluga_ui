@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Wifi, HelpCircle, Lightbulb, Sun, Moon, X, RotateCw, Zap, Loader2 } from "lucide-react"
+import { Wifi, Info, Lightbulb, Sun, Moon, X, RotateCw, Zap, Loader2 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRunStore } from "@/lib/store"
 import RunSetup from "@/components/run-setup"
@@ -16,6 +16,7 @@ import ElutionWellSelection from "@/components/elution-well-selection"
 import PreRunSummary from "@/components/pre-run-summary"
 import RunPage from "@/components/run-page"
 import WiFiModal from "@/components/wifi-modal"
+import UpdateModal from "@/components/update-modal"
 import { useSocketContext } from "@/lib/socketProvider"
 
 const UVIcon = ({ className = "" }: { className?: string }) => (
@@ -72,6 +73,13 @@ export default function PCRDashboard() {
   const { currentPage, setCurrentPage, setProtocolType, setSampleType } = useRunStore()
   const [imagesLoaded, setImagesLoaded] = useState<boolean>(false)
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set())
+
+  // Update notification state
+  const [updateData, setUpdateData] = useState<any>(null)
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [updateComplete, setUpdateComplete] = useState(false)
+  const [updateError, setUpdateError] = useState<string | null>(null)
 
   const allImages = [
     "/DNA.png",
@@ -175,6 +183,95 @@ export default function PCRDashboard() {
 
     preloadImages()
   }, [])
+
+  // Poll for updates - only on dashboard page
+  useEffect(() => {
+    if (currentPage !== 'dashboard') return
+
+    const checkForUpdates = async () => {
+      try {
+        const response = await fetch('/api/update/check')
+        const data = await response.json()
+
+        if (data.update_available) {
+          setUpdateData(data)
+
+          // If mandatory and we're on dashboard, show modal immediately
+          if (data.mandatory && !showUpdateModal) {
+            setShowUpdateModal(true)
+          }
+        } else {
+          setUpdateData(null)
+          setShowUpdateModal(false)
+        }
+      } catch (error) {
+        console.error('Failed to check for updates:', error)
+      }
+    }
+
+    // Check immediately on mount
+    checkForUpdates()
+
+    // Then check every 60 seconds
+    const interval = setInterval(checkForUpdates, 60000)
+
+    return () => clearInterval(interval)
+  }, [currentPage, showUpdateModal])
+
+  const handleUpdateClick = () => {
+    setShowUpdateModal(true)
+  }
+
+  const handleUpdate = async () => {
+    setIsUpdating(true)
+    setUpdateError(null)
+
+    try {
+      const response = await fetch('/api/update/trigger', { method: 'POST' })
+      const data = await response.json()
+
+      if (data.success) {
+        setUpdateComplete(true)
+        // Poll for completion (file deletion)
+        checkUpdateCompletion()
+      } else {
+        setUpdateError(data.error || 'Failed to trigger update')
+        setIsUpdating(false)
+      }
+    } catch (error) {
+      setUpdateError('Failed to trigger update')
+      setIsUpdating(false)
+    }
+  }
+
+  const checkUpdateCompletion = () => {
+    let pollCount = 0
+    const maxPolls = 24 // 2 minutes max (24 * 5 seconds)
+
+    const interval = setInterval(async () => {
+      pollCount++
+
+      try {
+        const response = await fetch('/api/update/check')
+        const data = await response.json()
+
+        if (!data.update_available) {
+          clearInterval(interval)
+          setIsUpdating(false)
+          setUpdateData(null)
+          // Keep modal open to show success, user can close it
+        }
+      } catch (error) {
+        console.error('Failed to check update completion:', error)
+      }
+
+      if (pollCount >= maxPolls) {
+        clearInterval(interval)
+        setUpdateError('Update is taking longer than expected')
+        setIsUpdating(false)
+      }
+    }, 5000)
+  }
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -361,8 +458,20 @@ export default function PCRDashboard() {
         <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300"   onClick={() => setShowWiFiModal(true)}>
           <Wifi className="size-12" />
         </Button>
-        <Button variant="ghost" size="lg" className="text-[var(--pcr-text-primary)] active:text-gray-300">
-          <HelpCircle className="size-12" />
+        <Button
+          variant="ghost"
+          size="lg"
+          className="text-[var(--pcr-text-primary)] active:text-gray-300 relative"
+          onClick={handleUpdateClick}
+          disabled={!updateData}
+        >
+          <Info className="size-12" />
+          {/* Update indicator badge */}
+          {updateData && updateData.update_available && (
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full ${
+              updateData.mandatory ? 'bg-red-500 animate-pulse' : 'bg-[var(--pcr-accent)]'
+            }`} />
+          )}
         </Button>
         <Button
           variant="ghost"
@@ -581,9 +690,24 @@ export default function PCRDashboard() {
         </div>
       )}
       {showWiFiModal && (
-        <WiFiModal 
-          isOpen={showWiFiModal} 
-          onClose={() => setShowWiFiModal(false)} 
+        <WiFiModal
+          isOpen={showWiFiModal}
+          onClose={() => setShowWiFiModal(false)}
+        />
+      )}
+      {updateData && (
+        <UpdateModal
+          isOpen={showUpdateModal}
+          onClose={() => {
+            if (!updateData.mandatory) {
+              setShowUpdateModal(false)
+            }
+          }}
+          updateData={updateData}
+          onUpdate={handleUpdate}
+          isUpdating={isUpdating}
+          updateComplete={updateComplete}
+          updateError={updateError}
         />
       )}
     </div>

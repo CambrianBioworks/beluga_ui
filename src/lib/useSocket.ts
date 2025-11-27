@@ -25,7 +25,7 @@ interface UseSocketReturn {
   getKnownNetworks: () => Promise<any>
 }
 
-export function useSocket(serverUrl: string = 'http://localhost:8000'): UseSocketReturn {
+export function useSocket(serverUrl: string = ''): UseSocketReturn {
   const socketRef = useRef<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false) 
   const [barcodeSlots, setBarcodeSlots] = useState<Record<number, any>>({})
