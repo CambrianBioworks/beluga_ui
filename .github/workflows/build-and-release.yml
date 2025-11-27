@@ -3,15 +3,15 @@
 # This workflow should be placed in the frontend repository at:
 # .github/workflows/build-and-release.yml
 #
-# It builds the Next.js application and creates a GitHub release with the
-# compiled artifact that can be deployed to Beluga PCR devices.
+# It builds the Next.js application and creates a GitHub release with an
+# auto-incremented version tag whenever code is pushed to main.
 
 name: Build and Release Frontend
 
 on:
   push:
-    tags:
-      - 'v*'  # Trigger on version tags like v1.0.0, v2.1.3, etc.
+    branches:
+      - main
   workflow_dispatch:  # Allow manual triggering
 
 permissions:
@@ -24,6 +24,40 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history to get all tags
+
+      - name: Get latest tag and increment version
+        id: version
+        run: |
+          # Get the latest tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git tag -l "v*" | sort -V | tail -n1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+          
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Remove 'v' prefix and split into parts
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+          
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New tag: $NEW_TAG"
+          
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
+
+      - name: Create and push new tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -53,32 +87,31 @@ jobs:
           cp package-lock.json release-artifact/
           cp next.config.* release-artifact/ 2>/dev/null || true
 
-          # Copy any other required files (adjust as needed)
-          # cp -r src release-artifact/ # Only if needed at runtime
-
           # Create tarball
           cd release-artifact
-          tar -czf ../beluga-frontend-${{ github.ref_name }}.tar.gz .
+          tar -czf ../beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz .
           cd ..
 
       - name: Generate checksum
         run: |
-          sha256sum beluga-frontend-${{ github.ref_name }}.tar.gz > beluga-frontend-${{ github.ref_name }}.tar.gz.sha256
+          sha256sum beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz > beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz.sha256
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          make_latest: true
           files: |
-            beluga-frontend-${{ github.ref_name }}.tar.gz
-            beluga-frontend-${{ github.ref_name }}.tar.gz.sha256
+            beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz
+            beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz.sha256
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Display artifact info
         run: |
-          echo "Release created for ${{ github.ref_name }}"
-          echo "Artifact size: $(du -h beluga-frontend-${{ github.ref_name }}.tar.gz | cut -f1)"
-          echo "SHA256: $(cat beluga-frontend-${{ github.ref_name }}.tar.gz.sha256)"
+          echo "Release created for ${{ steps.version.outputs.tag }}"
+          echo "Artifact size: $(du -h beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz | cut -f1)"
+          echo "SHA256: $(cat beluga-frontend-${{ steps.version.outputs.tag }}.tar.gz.sha256)"
