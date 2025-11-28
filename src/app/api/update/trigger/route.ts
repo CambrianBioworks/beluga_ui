@@ -1,55 +1,62 @@
 import { NextResponse } from 'next/server';
-import { spawn } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-const ANSIBLE_REPO = 'https://github.com/CambrianBioworks/ansible-beluga-deployment';
-const ANSIBLE_BRANCH = 'main';
-const PLAYBOOK = 'playbooks/self-update.yml';
+const execAsync = promisify(exec);
 
 export async function POST() {
   try {
     // Development mode: Simulate update trigger
     if (process.env.NODE_ENV === 'development') {
-      console.log('[DEV MODE] Simulating ansible-pull trigger...');
-
-      // Simulate delay
+      console.log('[DEV MODE] Simulating systemd service trigger...');
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       return NextResponse.json({
         success: true,
-        message: 'Update started (simulated)',
-        pid: 'dev-mode-12345'
+        message: 'Update started in background (simulated)',
+        timestamp: new Date().toISOString()
       }, { status: 202 });
     }
 
-    // Production mode: Trigger ansible-pull in background.
-    const ansiblePull = spawn(
-      'ansible-pull',
-      [
-        '-U', ANSIBLE_REPO,
-        '-C', ANSIBLE_BRANCH,
-        '-i', 'localhost,',
-        PLAYBOOK
-      ],
-      {
-        detached: true,
-        stdio: 'ignore'
+    // Production: Check if update is already running
+    try {
+      const { stdout: statusOutput } = await execAsync('systemctl is-active beluga-self-update.service');
+      if (statusOutput.trim() === 'active') {
+        return NextResponse.json({
+          success: false,
+          error: 'Update already in progress',
+          timestamp: new Date().toISOString()
+        }, { status: 409 }); // 409 Conflict
       }
-    );
+    } catch (err) {
+      // Service not active (expected) - continue
+    }
 
-    // Unref so it runs independently
-    ansiblePull.unref();
+    // Trigger systemd service (returns immediately)
+    console.log('[UPDATE] Triggering beluga-self-update.service...');
+    await execAsync('sudo systemctl start beluga-self-update.service');
+    console.log('[UPDATE] Service started successfully');
 
     return NextResponse.json({
       success: true,
-      message: 'Update started',
-      pid: ansiblePull.pid
+      message: 'Update started in background',
+      timestamp: new Date().toISOString()
     }, { status: 202 });
 
   } catch (error) {
-    console.error('Error triggering update:', error);
+    console.error('[UPDATE ERROR]', error);
+
+    // More specific error messages
+    const errorMessage = error instanceof Error ? error.message : 'Failed to start update';
+    const isSudoError = errorMessage.includes('sudo') || errorMessage.includes('permission');
+
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to start update'
+      error: isSudoError
+        ? 'Permission denied. Check sudo configuration for beluga user.'
+        : 'Failed to start update service',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      timestamp: new Date().toISOString()
     }, { status: 500 });
   }
 }

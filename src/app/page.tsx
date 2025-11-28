@@ -225,14 +225,16 @@ export default function PCRDashboard() {
   const handleUpdate = async () => {
     setIsUpdating(true)
     setUpdateError(null)
+    setUpdateComplete(false)
 
     try {
       const response = await fetch('/api/update/trigger', { method: 'POST' })
       const data = await response.json()
 
       if (data.success) {
-        setUpdateComplete(true)
-        // Poll for completion (file deletion)
+        // API returned success - update is now running in background
+        // Keep isUpdating = true and poll for completion
+        console.log('Update started in background, polling for completion...')
         checkUpdateCompletion()
       } else {
         setUpdateError(data.error || 'Failed to trigger update')
@@ -246,7 +248,7 @@ export default function PCRDashboard() {
 
   const checkUpdateCompletion = () => {
     let pollCount = 0
-    const maxPolls = 24 // 2 minutes max (24 * 5 seconds)
+    const maxPolls = 120 // 10 minutes max (120 * 5 seconds)
 
     const interval = setInterval(async () => {
       pollCount++
@@ -256,10 +258,13 @@ export default function PCRDashboard() {
         const data = await response.json()
 
         if (!data.update_available) {
+          // Update file deleted - update is complete!
           clearInterval(interval)
           setIsUpdating(false)
-          setUpdateData(null)
-          // Keep modal open to show success, user can close it
+          setUpdateComplete(true)
+          // Update the updateData to mark update as no longer available (removes badge)
+          setUpdateData(prev => prev ? { ...prev, update_available: false } : null)
+          console.log('Update completed successfully!')
         }
       } catch (error) {
         console.error('Failed to check update completion:', error)
@@ -267,7 +272,7 @@ export default function PCRDashboard() {
 
       if (pollCount >= maxPolls) {
         clearInterval(interval)
-        setUpdateError('Update is taking longer than expected')
+        setUpdateError('Update is taking longer than expected. Check logs: sudo journalctl -u beluga-self-update -f')
         setIsUpdating(false)
       }
     }, 5000)
@@ -699,8 +704,15 @@ export default function PCRDashboard() {
         <UpdateModal
           isOpen={showUpdateModal}
           onClose={() => {
-            if (!updateData.mandatory) {
+            if (!updateData.mandatory || updateComplete) {
+              // Allow closing if not mandatory OR if update is complete
               setShowUpdateModal(false)
+              // If update is complete, clear the update data
+              if (updateComplete) {
+                setUpdateData(null)
+                setUpdateComplete(false)
+                setUpdateError(null)
+              }
             }
           }}
           updateData={updateData}
