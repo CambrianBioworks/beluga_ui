@@ -218,7 +218,7 @@ export function useSocket(serverUrl: string = ''): UseSocketReturn {
       // Set a timeout in case the server doesn't respond
       const timeout = setTimeout(() => {
         reject(new Error('Server response timeout'))
-      }, 30000)
+      }, 30000) // 30 second timeout
 
       try {
         // Send start_pcr_run event with runData and callback
