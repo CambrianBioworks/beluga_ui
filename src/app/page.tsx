@@ -263,7 +263,7 @@ export default function PCRDashboard() {
           setIsUpdating(false)
           setUpdateComplete(true)
           // Update the updateData to mark update as no longer available (removes badge)
-          setUpdateData(prev => prev ? { ...prev, update_available: false } : null)
+          setUpdateData((prev: any) => prev ? { ...prev, update_available: false } : null)
           console.log('Update completed successfully!')
         }
       } catch (error) {
