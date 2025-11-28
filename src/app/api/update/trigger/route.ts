@@ -20,7 +20,7 @@ export async function POST() {
 
     // Production: Check if update is already running
     try {
-      const { stdout: statusOutput } = await execAsync('systemctl is-active beluga-self-update.service');
+      const { stdout: statusOutput } = await execAsync('/usr/bin/systemctl is-active beluga-self-update.service');
       if (statusOutput.trim() === 'active') {
         return NextResponse.json({
           success: false,
@@ -33,9 +33,9 @@ export async function POST() {
     }
 
     // Trigger systemd service (returns immediately)
-    // Use -n flag for non-interactive sudo (no TTY required)
+    // Use absolute paths to avoid PATH issues in systemd environment
     console.log('[UPDATE] Triggering beluga-self-update.service...');
-    await execAsync('sudo -n systemctl start beluga-self-update.service');
+    await execAsync('/usr/bin/sudo -n /usr/bin/systemctl start beluga-self-update.service');
     console.log('[UPDATE] Service started successfully');
 
     return NextResponse.json({
