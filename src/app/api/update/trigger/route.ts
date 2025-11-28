@@ -33,8 +33,9 @@ export async function POST() {
     }
 
     // Trigger systemd service (returns immediately)
+    // Use -n flag for non-interactive sudo (no TTY required)
     console.log('[UPDATE] Triggering beluga-self-update.service...');
-    await execAsync('sudo systemctl start beluga-self-update.service');
+    await execAsync('sudo -n systemctl start beluga-self-update.service');
     console.log('[UPDATE] Service started successfully');
 
     return NextResponse.json({
