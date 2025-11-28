@@ -35,7 +35,12 @@ export async function POST() {
     // Trigger systemd service (returns immediately)
     // Use absolute paths to avoid PATH issues in systemd environment
     console.log('[UPDATE] Triggering beluga-self-update.service...');
-    await execAsync('/usr/bin/sudo -n /usr/bin/systemctl start beluga-self-update.service');
+    await execAsync('sudo systemctl start beluga-self-update.service', {
+      env: {
+        ...process.env,
+        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+      }
+    });
     console.log('[UPDATE] Service started successfully');
 
     return NextResponse.json({
