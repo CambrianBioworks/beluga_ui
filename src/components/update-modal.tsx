@@ -99,7 +99,7 @@ export default function UpdateModal({
           {isUpdating && (
             <div className="mb-[24px] flex items-center justify-center gap-3 text-[var(--pcr-accent)]">
               <Loader2 className="w-[24px] h-[24px] animate-spin" />
-              <span className="text-[20px] font-light">Update in progress... (30-60 seconds)</span>
+              <span className="text-[20px] font-light">Update in progress... (5-10 minutes)</span>
             </div>
           )}
 
